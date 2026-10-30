@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./game.css";
+
+/* Màu Tailwind trỏ tới token CSS nên tự đổi theo chế độ sáng/tối: bg-surface, text-muted, border-line, bg-pine… */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-pine: var(--pine);
+  --color-pine-ink: var(--pine-ink);
+  --color-lamp: var(--lamp);
+  --color-lamp-ink: var(--lamp-ink);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-pk: var(--pk);
+  --color-pk2: var(--pk2);
+  --color-pkline: var(--pkline);
+  --color-ptitle: var(--ptitle);
+  --color-psub: var(--psub);
+}
+@theme {
+  --font-display: 'Baloo 2', 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-body: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-hud: 'Barlow Condensed', 'Baloo 2', system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 var(--font-body);
+    padding: 0 max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
+  }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 700; line-height: 1.15; text-wrap: balance; }
+  h1 { font-size: 28px; }
+  h2 { font-size: 21px; }
+  h3 { font-size: 17px; }
+  button:not(:disabled) { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--lamp); outline-offset: 2px; }
+  code { font-size: .92em; background: var(--surface2); padding: 1px 5px; border-radius: 5px; }
+  @media (max-width: 520px) { h1 { font-size: 24px; } }
+}
