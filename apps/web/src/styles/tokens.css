@@ -1,0 +1,41 @@
+/* Token màu, sáng và tối. Tailwind đọc các biến này qua @theme trong index.css. */
+:root{
+  --bg:#e7eeec; --surface:#f6f9f8; --surface2:#d9e5e2; --ink:#16302b; --muted:#4b655f; --line:#bfd0cc;
+  --pine:#1f5a4c; --pine-ink:#f3faf7; --lamp:#e7a521; --lamp-ink:#2a1d00;
+  --good:#17743f; --warn:#955600; --bad:#a82f24;
+  --c1:#1f5a4c; --c2:#a85f12; --c3:#2f62ad;
+  --sea1:#7ccb55; --sea2:#5bb243; --orb:#fff1b0; --cloud:#ffffff;
+  --asph:#6b727c; --lane:#f5f2e4; --walk:#dcd7c8; --grass:#6dc24b; --grass2:#63b843; --soil:#a9805a;
+  --wa:#f7dfae; --wb:#f2a65a; --wc:#ebe6d8; --wd:#fbf3df; --rr:#d63a30; --rb:#2f78c4; --rg:#2f9d58;
+  --stone:#bdb8aa; --wood:#a97a48; --brick:#b4503c; --leaf:#3da83e; --glass:#8cc4e6; --win:#bfe6f7; --court:#4d9a8a;
+  --awn:#f08a3c; --door:#7a4e2c; --gold:#efbd35; --trunk:#8a5a34; --water:#58b4dc; --f1:#ef7aa2; --f2:#f2c744;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1918; --surface:#142423; --surface2:#1c3230; --ink:#e3efec; --muted:#9ab5af; --line:#2a4540;
+    --pine:#62c6a6; --pine-ink:#05211a; --lamp:#f2b840; --lamp-ink:#2a1d00;
+    --good:#62d492; --warn:#f0b254; --bad:#ff8c7c;
+    --c1:#62c6a6; --c2:#f0a24a; --c3:#7fb2f0;
+    --sea1:#173d2a; --sea2:#10301f; --orb:#e8edf6; --cloud:#5d7396;
+    --asph:#2e353e; --lane:#c9c3a0; --walk:#4a5760; --grass:#2f6d48; --grass2:#2a6241; --soil:#5a4733;
+    --wa:#bfae93; --wb:#a98763; --wc:#a9b0b3; --wd:#c4bdad; --rr:#b9453d; --rb:#3f5f9a; --rg:#2f7f52;
+    --stone:#7d8581; --wood:#8a6038; --brick:#a46a4c; --leaf:#3f9a55; --glass:#ffd877; --win:#ffd877; --court:#2f7d70;
+    --awn:#d9693c; --door:#5d3b21; --gold:#f5c542; --trunk:#6e4727; --water:#4aa6d0; --f1:#e872a0; --f2:#ecc040;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1918; --surface:#142423; --surface2:#1c3230; --ink:#e3efec; --muted:#9ab5af; --line:#2a4540;
+  --pine:#62c6a6; --pine-ink:#05211a; --lamp:#f2b840; --lamp-ink:#2a1d00;
+  --good:#62d492; --warn:#f0b254; --bad:#ff8c7c;
+  --c1:#62c6a6; --c2:#f0a24a; --c3:#7fb2f0;
+  --sea1:#173d2a; --sea2:#10301f; --orb:#e8edf6; --cloud:#5d7396;
+  --asph:#2e353e; --lane:#c9c3a0; --walk:#4a5760; --grass:#2f6d48; --grass2:#2a6241; --soil:#5a4733;
+  --wa:#bfae93; --wb:#a98763; --wc:#a9b0b3; --wd:#c4bdad; --rr:#b9453d; --rb:#3f5f9a; --rg:#2f7f52;
+  --stone:#7d8581; --wood:#8a6038; --brick:#a46a4c; --leaf:#3f9a55; --glass:#ffd877; --win:#ffd877; --court:#2f7d70;
+  --awn:#d9693c; --door:#5d3b21; --gold:#f5c542; --trunk:#6e4727; --water:#4aa6d0; --f1:#e872a0; --f2:#ecc040;
+  color-scheme: dark;
+}
+:root{--pk:#fbf6e6;--pk2:#f2e9cb;--pkline:#e4d6a8;--ptitle:#1d4f91;--psub:#7b8a86}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pk:#18302d;--pk2:#1f3a36;--pkline:#2d4a45;--ptitle:#8fc6ff;--psub:#9ab5af}}
+:root[data-theme="dark"]{--pk:#18302d;--pk2:#1f3a36;--pkline:#2d4a45;--ptitle:#8fc6ff;--psub:#9ab5af}

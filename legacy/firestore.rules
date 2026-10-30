@@ -1,0 +1,55 @@
+rules_version = '2';
+// Quy tắc bảo mật Firestore cho Thành Phố Tự Lập.
+// Dán vào Firebase Console > Firestore Database > Rules, hoặc chạy: firebase deploy --only firestore:rules
+//
+// users/{uid}                              hồ sơ: tên, cách đăng nhập, nhóm đang tham gia (groupId)
+// groups/{gid}                             thông tin nhóm: tên, trưởng nhóm (ownerId)
+// groups/{gid}/players/{uid}               thành phố và số liệu của từng thành viên
+// groups/{gid}/logs/{uid}/sessions/{sid}   nhật ký phiên, chỉ chủ nhân và trưởng nhóm xem được
+// groups/{gid}/config/questions            ngân hàng câu hỏi của nhóm
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function groupOf() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId; }
+    function isMember(gid) { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && groupOf() == gid; }
+    function isOwner(gid) { return signedIn() && get(/databases/$(database)/documents/groups/$(gid)).data.ownerId == request.auth.uid; }
+    function validName(n, max) { return n is string && n.size() > 0 && n.size() <= max; }
+
+    match /users/{uid} {
+      allow read: if isMe(uid);
+      // groupId chỉ được trỏ tới nhóm có thật (hoặc null khi rời nhóm).
+      allow create, update: if isMe(uid)
+        && validName(request.resource.data.name, 24)
+        && (request.resource.data.groupId == null
+            || exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)));
+      allow delete: if false;
+    }
+
+    match /groups/{gid} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && validName(request.resource.data.name, 40);
+      allow update: if signedIn() && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && validName(request.resource.data.name, 40);
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      match /players/{uid} {
+        allow read: if isMember(gid);
+        allow write: if isMe(uid) && isMember(gid);
+      }
+
+      match /logs/{uid}/sessions/{sid} {
+        allow read: if isMe(uid) || isOwner(gid);
+        allow write: if isMe(uid) && isMember(gid);
+      }
+
+      match /config/{doc} {
+        allow read: if isMember(gid);
+        allow write: if isOwner(gid);
+      }
+    }
+  }
+}

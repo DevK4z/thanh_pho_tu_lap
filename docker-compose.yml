@@ -1,0 +1,15 @@
+# PostgreSQL cho phát triển (không bắt buộc: bỏ trống DATABASE_URL thì API dùng PGlite nhúng).
+# docker compose up -d, rồi đặt DATABASE_URL=postgres://tptl:tptl@localhost:5432/tptl trong apps/api/.env
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tptl
+      POSTGRES_PASSWORD: tptl
+      POSTGRES_DB: tptl
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
