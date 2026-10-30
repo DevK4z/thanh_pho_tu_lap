@@ -1,0 +1,17 @@
+{
+  "name": "thanh-pho-tu-lap",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @tptl/api\" \"npm run dev -w @tptl/web\"",
+    "build": "npm run build -w @tptl/api && npm run build -w @tptl/web",
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "typescript": "~5.9.2"
+  },
+  "engines": { "node": ">=20" }
+}
