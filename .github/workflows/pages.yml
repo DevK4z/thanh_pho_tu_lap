@@ -1,5 +1,7 @@
 name: Deploy GitHub Pages
 
+# Triển khai giao diện web (apps/web). Địa chỉ API lấy từ biến repo API_URL:
+# Settings > Secrets and variables > Actions > Variables > New repository variable.
 on:
   push:
     branches: [main]
@@ -21,26 +23,20 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Kiểm tra file index.html
-        run: test -s index.html
-
-      - name: Chuẩn bị thư mục site
-        run: |
-          mkdir -p _site
-          cp index.html _site/
-          touch _site/.nojekyll
-
-      - name: Cấu hình Pages
-        uses: actions/configure-pages@v5
-
-      - name: Tải lên artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          path: _site
-
-      - name: Triển khai
-        id: deployment
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build giao diện
+        run: npm run build -w @tptl/web
+        env:
+          VITE_API_URL: ${{ vars.API_URL }}
+      - run: touch apps/web/dist/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+      - id: deployment
         uses: actions/deploy-pages@v4
