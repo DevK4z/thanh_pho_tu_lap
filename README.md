@@ -61,6 +61,8 @@ npm install
 npm run dev          # API ở http://localhost:8787, web ở http://localhost:5173
 ```
 
+Luôn chạy lệnh này ở **thư mục gốc** để bật cả API lẫn web. Mở http://localhost:5173; khi phát triển, Vite chuyển tiếp `/api` sang API nên mở bằng `127.0.0.1` hay IP mạng LAN (thử trên điện thoại cùng Wi‑Fi) cũng được.
+
 Không cần cài PostgreSQL: khi `DATABASE_URL` để trống, API dùng PGlite (PostgreSQL nhúng) lưu ở `apps/api/.data/pglite`. Muốn dùng PostgreSQL thật: `docker compose up -d` rồi đặt `DATABASE_URL=postgres://tptl:tptl@localhost:5432/tptl` trong `apps/api/.env`.
 
 Chỉ đăng nhập khách hoạt động cho tới khi cấu hình Google/Facebook (xem bên dưới). Biến môi trường mẫu: [apps/api/.env.example](apps/api/.env.example), [apps/web/.env.example](apps/web/.env.example).
