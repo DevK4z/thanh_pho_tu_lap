@@ -28,6 +28,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Kiểm tra địa chỉ API
+        run: |
+          if [ -z "${{ vars.API_URL }}" ]; then
+            echo "::error::Chưa có biến API_URL. Triển khai API trước (xem README, mục Triển khai), rồi tạo biến tại Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
       - run: npm ci
       - name: Build giao diện
         run: npm run build -w @tptl/web
