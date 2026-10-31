@@ -45,6 +45,27 @@ describe('CityScene', () => {
     await r.unmount();
   });
 
+  it('chọn công trình không làm công trình biến mất; công trình mới xây có hiệu ứng rồi về đúng kích thước', async () => {
+    const plot = allItems.slice(0, 3);
+    const onSelect = vi.fn();
+    const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(90, HKEYS[0], plot)} night={false} onSelect={onSelect} />);
+    const scaleOf = (slot: number) => r.scene.find((n) => n.props.name === 'item-' + slot).children[0].instance.scale.x;
+    expect(scaleOf(0)).toBe(1);
+    await r.fireEvent(r.scene.find((n) => n.props.name === 'item-2'), 'click');
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'item', slot: 2, item: plot[1] });
+    await r.update(<CityScene owner={owner(90, HKEYS[0], plot)} night={false} onSelect={onSelect} selected={{ kind: 'item', slot: 2, item: plot[1] }} />);
+    await r.advanceFrames(3, 0.016);
+    expect([0, 2, 4].map(scaleOf)).toEqual([1, 1, 1]);
+    // Xây thêm một công trình: bắt đầu nhỏ, sau ~1,5 giây về kích thước thật.
+    const more = plot.concat([{ s: 10, i: 'thap', t: 4, g: 0 }]);
+    await r.update(<CityScene owner={owner(90, HKEYS[0], more)} night={false} onSelect={onSelect} />);
+    expect(scaleOf(10)).toBeLessThan(0.1);
+    await r.advanceFrames(100, 0.02);
+    expect(scaleOf(10)).toBe(1);
+    expect(scaleOf(0)).toBe(1);
+    await r.unmount();
+  }, 30_000);
+
   it('không có onPick thì không có lô bấm được', async () => {
     const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(90)} night={false} />);
     expect(r.scene.findAll((n) => typeof n.props.name === 'string' && n.props.name.startsWith('slot-'))).toHaveLength(0);

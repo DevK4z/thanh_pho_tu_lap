@@ -1,9 +1,9 @@
 /* Cảnh thành phố 3D (không gồm Canvas và camera, để test được bằng @react-three/test-renderer).
    Bố cục giống bản 2D: lưới 7×7 lô, đường ở hàng 3 và cột 3, nhà chính ở lô (1,1), sông chạy dọc hai cạnh phía trước,
    rừng thông ở hai cạnh phía sau. Trục x theo cột, trục z theo hàng; mỗi lô rộng 2. */
-import { useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { GN, ITEMS, SLOTS, levelOf, type ItemId } from '@tptl/shared';
+import { GN, ITEMS, SLOTS, levelOf, type ItemId, type PlotItem } from '@tptl/shared';
 import type * as THREE from 'three';
 import type { CityOwner } from '../iso';
 import { EmptyLot, HouseModel, ITEM_HEIGHT, ItemModel } from './models';
@@ -17,6 +17,8 @@ const EDGE = HALF + 3.2;
 const RIVER = [HALF + 0.5, HALF + 2.3] as const;
 
 export interface HoverInfo { label: string; slot?: number }
+/** Công trình hoặc nhà chính đang được chọn (bấm vào) để xem thông tin. */
+export type Selected = { kind: 'item'; slot: number; item: PlotItem } | { kind: 'house' };
 
 const itemName = (id: ItemId) => ITEMS.find((x) => x.id === id)?.n ?? id;
 
@@ -152,6 +154,61 @@ function Spinner({ y }: { y: number }) {
   return <group ref={g} position={[0, y, 0]}><StarShape /></group>;
 }
 
+const easeOutBack = (t: number) => 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
+
+/** Công trình mới xây: bật lên (phóng to có nảy) kèm tia lấp lánh bay lên.
+    Chỉ đọc `animate` lúc xuất hiện; các lần vẽ lại sau (chọn, rê chuột) không được ảnh hưởng kích thước. */
+function Appear({ animate, children }: { animate: boolean; children: ReactNode }) {
+  const g = useRef<THREE.Group>(null);
+  const start = useRef<number | null>(null);
+  const sparks = useRef<(THREE.Mesh | null)[]>([]);
+  const [initial] = useState(animate);
+  const [done, setDone] = useState(!initial);
+  const dirs = useRef(Array.from({ length: 14 }, (_, k) => {
+    const a = (k / 14) * Math.PI * 2;
+    return [Math.cos(a) * (0.6 + (k % 3) * 0.25), 1.2 + (k % 4) * 0.35, Math.sin(a) * (0.6 + (k % 3) * 0.25)] as const;
+  }));
+  useFrame((_, dt) => {
+    if (done || !g.current) return;
+    // Cộng dồn thời gian giữa các khung hình (không phụ thuộc đồng hồ thật).
+    start.current = (start.current ?? 0) + Math.min(dt, 0.1);
+    const e = start.current;
+    const t = Math.min(1, e / 0.7);
+    g.current.scale.setScalar(Math.max(0.01, easeOutBack(t)));
+    const u = Math.min(1, e / 1.4);
+    sparks.current.forEach((m, k) => {
+      if (!m) return;
+      const [dx, dy, dz] = dirs.current[k];
+      m.position.set(dx * u, 0.3 + dy * u - 0.6 * u * u, dz * u);
+      (m.material as THREE.MeshBasicMaterial).opacity = 1 - u;
+    });
+    if (e > 1.4) { g.current.scale.setScalar(1); setDone(true); }
+  });
+  return (
+    <>
+      <group ref={g} scale={initial ? 0.01 : 1}>{children}</group>
+      {!done && dirs.current.map((_, k) => (
+        <mesh key={k} ref={(m) => { sparks.current[k] = m; }} position={[0, 0.3, 0]}>
+          <octahedronGeometry args={[0.07]} />
+          <meshBasicMaterial color={k % 2 ? '#fff6c2' : C.gold} transparent />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+/** Vòng sáng quanh công trình đang chọn. */
+function SelectRing() {
+  const m = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => { if (m.current) m.current.rotation.z = clock.getElapsedTime() * 0.6; });
+  return (
+    <mesh ref={m} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.07, 0]}>
+      <ringGeometry args={[1.02, 1.14, 40, 1, 0, Math.PI * 1.6]} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.9} depthWrite={false} />
+    </mesh>
+  );
+}
+
 /** Ô sáng nhấp nháy đánh dấu lô bấm được: vàng là đất trống, đỏ là lô đã có công trình (sẽ bị thay).
     Đặt cao hơn ruộng và bụi cây để không bị che. */
 function SlotTile({ i, occupied, hot, onOver, onOut, onPick }: {
@@ -187,10 +244,17 @@ export interface CitySceneProps {
   /** Có thì các lô đất bấm được để đặt công trình. */
   onPick?: (slot: number) => void;
   onHover?: (h: HoverInfo | null) => void;
+  /** Bấm vào công trình hoặc nhà chính (khi không ở chế độ đặt công trình). */
+  onSelect?: (s: Selected | null) => void;
+  selected?: Selected | null;
 }
 
-export function CityScene({ owner, night, onPick, onHover }: CitySceneProps) {
+export function CityScene({ owner, night, onPick, onHover, onSelect, selected }: CitySceneProps) {
   const [hover, setHover] = useState<number | null>(null);
+  // Sau lần dựng đầu, công trình nào mới xuất hiện thì chạy hiệu ứng xây.
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; }, []);
+  const pick = (s: Selected) => (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onSelect?.(s); };
   const plot = owner.plot || [];
   const L = levelOf(owner.totalFocusMin || 0);
   const occupied = new Map(plot.map((p) => [p.s, p]));
@@ -218,8 +282,10 @@ export function CityScene({ owner, night, onPick, onHover }: CitySceneProps) {
 
       <group position={[hx, 0, hz]}
         onPointerOver={(e) => { e.stopPropagation(); onHover?.({ label: `Nhà của ${owner.name} · ${L.n}` }); }}
-        onPointerOut={(e) => { e.stopPropagation(); onHover?.(null); }}>
+        onPointerOut={(e) => { e.stopPropagation(); onHover?.(null); }}
+        onClick={onPick ? undefined : pick({ kind: 'house' })}>
         <HouseModel style={owner.style} lv={L.lv} />
+        {selected?.kind === 'house' && <SelectRing />}
       </group>
 
       {SLOTS.map(([r, c], i) => {
@@ -230,9 +296,13 @@ export function CityScene({ owner, night, onPick, onHover }: CitySceneProps) {
           <group key={i} position={[x, 0, z]}>
             <Box p={[0, 0.02, 0]} s={[1.86, 0.04, 1.86]} r={0} c={C.lot} cast={false} />
             {p ? (
-              <group onPointerOver={onPick ? undefined : over(i, label)} onPointerOut={onPick ? undefined : out}>
-                <ItemModel id={p.i} />
-                {p.g ? <Spinner y={ITEM_HEIGHT[p.i] + 0.35} /> : null}
+              <group key={p.i + ':' + p.g} name={'item-' + i} onPointerOver={onPick ? undefined : over(i, label)} onPointerOut={onPick ? undefined : out}
+                onClick={onPick ? undefined : pick({ kind: 'item', slot: i, item: p })}>
+                <Appear animate={mounted.current}>
+                  <ItemModel id={p.i} />
+                  {p.g ? <Spinner y={ITEM_HEIGHT[p.i] + 0.35} /> : null}
+                </Appear>
+                {selected?.kind === 'item' && selected.slot === i && <SelectRing />}
               </group>
             ) : <EmptyLot i={i} />}
             {onPick && (
