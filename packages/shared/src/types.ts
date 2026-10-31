@@ -30,6 +30,8 @@ export interface Me {
   provider: Provider;
   avatarUrl: string | null;
   currentGroupId: string | null;
+  /** Quản trị viên của ứng dụng (email nằm trong ADMIN_EMAILS của máy chủ): xem được báo cáo mọi nhóm. */
+  isAdmin: boolean;
 }
 
 export interface Player {
@@ -132,3 +134,39 @@ export interface GroupQuestion { id: string; act: ActKey | 'all'; q: string; o: 
 export interface PublicConfig { google: string | null; facebook: string | null }
 
 export interface ApiErrorBody { error: { code: string; message: string } }
+
+/** Một dòng báo cáo admin: một người trong một nhóm. Tỷ lệ tính trên số phiên đã kết thúc (không tính phiên đang chạy). */
+export interface AdminReportRow {
+  playerId: string;
+  name: string;
+  groupName: string;
+  provider: Provider;
+  email: string | null;
+  /** Phiên đã đăng ký (gồm cả phiên đang chạy). */
+  registered: number;
+  done: number;
+  failed: number;
+  active: number;
+  /** done / (done + failed), null khi chưa có phiên kết thúc. */
+  completionRate: number | null;
+  /** failed / (done + failed). */
+  quitRate: number | null;
+  /** Số phút đã đăng ký và số phút của các phiên hoàn thành (phiên đã kết thúc). */
+  plannedMin: number;
+  doneMin: number;
+  /** doneMin / plannedMin. */
+  timeRate: number | null;
+  currentStreak: number;
+  bestStreak: number;
+  gold: number;
+  wood: number;
+  createdAt: number;
+  lastAt: number | null;
+}
+export interface AdminReport {
+  generatedAt: number;
+  /** Số ngày gần nhất được tính, null là từ đầu đến nay. */
+  days: number | null;
+  rows: AdminReportRow[];
+  totals: { players: number; groups: number; registered: number; done: number; failed: number; active: number; completionRate: number | null; quitRate: number | null };
+}

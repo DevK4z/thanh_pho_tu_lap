@@ -10,7 +10,7 @@ import type { Db } from '../db/client';
 import { dayStats, focusSessions, groups, players, users } from '../db/schema';
 import { HttpError, parse, pgCode } from '../errors';
 import { publicSession } from '../questions';
-import { cleanName, toMe } from './auth';
+import { cleanName } from './auth';
 
 export type PlayerRow = typeof players.$inferSelect;
 type GroupRow = typeof groups.$inferSelect;
@@ -60,7 +60,7 @@ async function loadDays(db: Db, ids: string[]): Promise<Map<string, Days>> {
   return out;
 }
 
-export function groupRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
+export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe }: Ctx) {
   app.get('/groups', async (req): Promise<GroupSummary[]> => {
     await requireUser(req);
     const members = db.select({ groupId: players.groupId, n: count().as('n') }).from(players).groupBy(players.groupId).as('members');

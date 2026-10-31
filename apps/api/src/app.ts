@@ -12,6 +12,8 @@ import { authRoutes } from './routes/auth';
 import { groupRoutes } from './routes/groups';
 import { sessionRoutes } from './routes/sessions';
 import { adminRoutes } from './routes/admin';
+import { reportRoutes } from './routes/report';
+import type { Me } from '@tptl/shared';
 
 export type User = typeof users.$inferSelect;
 
@@ -28,6 +30,10 @@ export interface Ctx {
   verifiers: Verifiers;
   /** Bắt buộc đăng nhập; trả về người dùng hiện tại. */
   requireUser(req: FastifyRequest): Promise<User>;
+  /** Email nằm trong ADMIN_EMAILS và không phải tài khoản khách. */
+  isAdmin(u: User): boolean;
+  /** Hồ sơ trả về cho trình duyệt. */
+  toMe(u: User): Me;
 }
 
 export interface AppOptions {
@@ -85,7 +91,9 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   });
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: { code: 'not_found', message: 'Không tìm thấy.' } }));
 
-  const ctx: Ctx = { db, env, verifiers, requireUser };
+  const isAdmin = (u: User) => u.provider !== 'guest' && !!u.email && env.ADMIN_EMAILS.has(u.email.toLowerCase());
+  const toMe = (u: User): Me => ({ id: u.id, name: u.name, provider: u.provider, avatarUrl: u.avatarUrl, currentGroupId: u.currentGroupId, isAdmin: isAdmin(u) });
+  const ctx: Ctx = { db, env, verifiers, requireUser, isAdmin, toMe };
   // commit: mã git đang chạy (Render tự đặt RENDER_GIT_COMMIT), để kiểm tra đã deploy đúng bản.
   app.get('/health', async () => ({ ok: true, commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null }));
   await app.register(async (api) => {
@@ -93,6 +101,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     groupRoutes(api, ctx);
     sessionRoutes(api, ctx);
     adminRoutes(api, ctx);
+    reportRoutes(api, ctx);
   }, { prefix: '/api' });
 
   return app;
