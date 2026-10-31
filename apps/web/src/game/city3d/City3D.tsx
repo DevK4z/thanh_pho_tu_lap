@@ -1,7 +1,7 @@
 /* Thành phố 3D: Canvas, ánh sáng ngày/đêm, camera xoay/phóng/kéo, thanh công cụ.
    Điều khiển: kéo chuột trái để xoay, cuộn để phóng to, kéo chuột phải (hoặc hai ngón) để di chuyển. */
 import { useEffect, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CameraControls, Stars } from '@react-three/drei';
 import type { CityOwner } from '../iso';
 import { CityScene, cellPos, type HoverInfo } from './CityScene';
@@ -15,15 +15,35 @@ const load = <T extends string>(k: string, d: T, ok: readonly T[]): T => {
 };
 const save = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* bỏ qua */ } };
 
+const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 const isNightNow = () => { const h = new Date().getHours(); return h < 6 || h >= 18; };
 const lowEnd = () => typeof matchMedia !== 'undefined' && (matchMedia('(pointer: coarse)').matches || (navigator.hardwareConcurrency ?? 8) <= 4);
 
 const [hx, hz] = cellPos(1, 1);
 const VIEWS: Record<View, [number, number, number, number, number, number]> = {
-  overview: [17, 16, 17, 0, 0, 0],
+  overview: [14.5, 13.5, 14.5, 0, -0.5, 0],
   home: [hx + 6, 5.5, hz + 6, hx, 0.6, hz],
-  top: [0.01, 30, 0.01, 0, 0, 0],
+  top: [0.01, 34, 0.01, 0, 0, 0],
 };
+/** Khung càng hẹp (dọc, điện thoại) thì lùi camera xa hơn để thấy trọn hòn đảo. */
+function viewFor(v: View, aspect: number): [number, number, number, number, number, number] {
+  const [a, b, c, d, e, f] = VIEWS[v];
+  if (v === 'home') return VIEWS[v];
+  const k = aspect >= 1.6 ? 1 : aspect >= 1.25 ? 1.2 : aspect >= 0.9 ? 1.5 : aspect >= 0.7 ? 2.1 : 2.5;
+  return v === 'overview' ? [a * k, b * k, c * k, d, e, f] : [a, b * k, c, d, e, f];
+}
+
+/** Đặt góc nhìn tổng quan khớp tỉ lệ khung ngay khi mở. */
+function InitialView({ controls }: { controls: React.RefObject<CameraControls | null> }) {
+  const size = useThree((s) => s.size);
+  const done = useRef(false);
+  useFrame(() => {
+    if (done.current || !controls.current || !size.width) return;
+    done.current = true;
+    controls.current.setLookAt(...viewFor('overview', size.width / size.height), false);
+  });
+  return null;
+}
 
 /** Tự xoay quanh thành phố khi bật. */
 function AutoRotate({ controls, on }: { controls: React.RefObject<CameraControls | null>; on: boolean }) {
@@ -61,6 +81,7 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [clockNight, setClockNight] = useState(isNightNow);
   const controls = useRef<CameraControls | null>(null);
+  const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = setInterval(() => setClockNight(isNightNow()), 60_000);
@@ -72,12 +93,15 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
 
   const night = time === 'auto' ? clockNight : time === 'night';
   const high = quality === 'high' || (quality === 'auto' && !lowEnd());
-  const go = (v: View) => { const [a, b, c, d, e, f] = VIEWS[v]; controls.current?.setLookAt(a, b, c, d, e, f, true); };
+  const go = (v: View) => {
+    const el = box.current;
+    controls.current?.setLookAt(...viewFor(v, el ? el.clientWidth / Math.max(1, el.clientHeight) : 1.6), true);
+  };
   const bg = night ? '#0b1530' : '#bfe3ff';
 
   return (
-    <div className={`relative w-full overflow-hidden rounded-2xl border border-line ${height}`} style={{ background: bg }}>
-      <Canvas shadows={high} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 200 }}
+    <div ref={box} className={`relative w-full overflow-hidden rounded-2xl border border-line ${height}`} style={{ background: bg }}>
+      <Canvas shadows={high ? 'percentage' : false} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 200 }}
         gl={{ antialias: true }} onPointerMissed={() => setHover(null)}>
         <color attach="background" args={[bg]} />
         <fog attach="fog" args={[bg, 38, 80]} />
@@ -86,6 +110,7 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
         <CityScene owner={owner} night={night} onPick={onPick} onHover={setHover} />
         <CameraControls ref={controls} makeDefault minDistance={6} maxDistance={48} minPolarAngle={0.15} maxPolarAngle={1.35} smoothTime={0.35} />
         <AutoRotate controls={controls} on={rotate && !onPick} />
+        <InitialView controls={controls} />
       </Canvas>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 p-2.5">
@@ -106,8 +131,9 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
       {hover && (
         <div className="pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm font-semibold text-white">{hover.label}</div>
       )}
-      <p className="pointer-events-none absolute inset-x-0 bottom-0 p-2 text-center text-[11px] text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
-        {onPick ? 'Bấm vào lô đất phát sáng để xây · ' : ''}Kéo để xoay · Cuộn để phóng to · Chuột phải hoặc hai ngón để di chuyển
+      <p className="pointer-events-none absolute bottom-2 left-1/2 max-w-[94%] -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-center text-[11px] text-white backdrop-blur">
+        {onPick ? <b>{isTouch() ? 'Chạm' : 'Bấm'} lô sáng để xây · </b> : null}
+        {isTouch() ? 'Vuốt: xoay · Chụm: phóng to · Hai ngón: di chuyển' : 'Kéo: xoay · Cuộn: phóng to · Chuột phải: di chuyển'}
       </p>
     </div>
   );

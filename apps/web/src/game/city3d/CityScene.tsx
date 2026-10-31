@@ -152,6 +152,35 @@ function Spinner({ y }: { y: number }) {
   return <group ref={g} position={[0, y, 0]}><StarShape /></group>;
 }
 
+/** Ô sáng nhấp nháy đánh dấu lô bấm được: vàng là đất trống, đỏ là lô đã có công trình (sẽ bị thay).
+    Đặt cao hơn ruộng và bụi cây để không bị che. */
+function SlotTile({ i, occupied, hot, onOver, onOut, onPick }: {
+  i: number; occupied: boolean; hot: boolean;
+  onOver: (e: ThreeEvent<PointerEvent>) => void; onOut: (e: ThreeEvent<PointerEvent>) => void; onPick: (slot: number) => void;
+}) {
+  const mat = useRef<THREE.MeshStandardMaterial>(null);
+  useFrame(({ clock }) => {
+    if (!mat.current) return;
+    const pulse = 0.5 + 0.5 * Math.sin(clock.getElapsedTime() * 3 + i * 0.4);
+    mat.current.opacity = hot ? 0.85 : (occupied ? 0.35 : 0.45) + pulse * 0.2;
+  });
+  const col = occupied ? C.red : C.gold;
+  return (
+    <group position={[0, 0.2, 0]}>
+      <mesh name={'slot-' + i} rotation={[-Math.PI / 2, 0, 0]} onPointerOver={onOver} onPointerOut={onOut}
+        onClick={(e) => { e.stopPropagation(); onPick(i); }}>
+        <planeGeometry args={[1.8, 1.8]} />
+        <meshStandardMaterial ref={mat} color={col} emissive={col} emissiveIntensity={hot ? 0.9 : 0.5} transparent opacity={0.5} depthWrite={false} />
+      </mesh>
+      {/* viền sáng quanh lô */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
+        <ringGeometry args={[1.18, 1.28, 4, 1, Math.PI / 4]} />
+        <meshBasicMaterial color={hot ? '#ffffff' : col} transparent opacity={0.95} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
 export interface CitySceneProps {
   owner: CityOwner;
   night: boolean;
@@ -207,18 +236,8 @@ export function CityScene({ owner, night, onPick, onHover }: CitySceneProps) {
               </group>
             ) : <EmptyLot i={i} />}
             {onPick && (
-              <mesh
-                name={'slot-' + i}
-                position={[0, 0.09, 0]}
-                rotation={[-Math.PI / 2, 0, 0]}
-                onPointerOver={over(i, p ? `${label} · sẽ bị thay` : `Lô ${i + 1} · bấm để xây`)}
-                onPointerOut={out}
-                onClick={(e) => { e.stopPropagation(); onPick(i); }}
-              >
-                <planeGeometry args={[1.8, 1.8]} />
-                <meshStandardMaterial color={p ? C.red : C.gold} transparent opacity={hover === i ? 0.7 : 0.35}
-                  emissive={p ? C.red : C.gold} emissiveIntensity={hover === i ? 0.6 : 0.25} depthWrite={false} />
-              </mesh>
+              <SlotTile i={i} occupied={!!p} hot={hover === i} onPick={onPick} onOut={out}
+                onOver={over(i, p ? `${label} · sẽ bị thay` : `Lô ${i + 1} · bấm để xây`)} />
             )}
           </group>
         );
