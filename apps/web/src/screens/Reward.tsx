@@ -58,7 +58,7 @@ export function Reward({ gid, player, result: r, onAllPlaced }: { gid: string; p
           ))}
         </div>
         <p className="text-[13px] text-muted">
-          {item ? 'Bấm vào một lô đất nét đứt trên bản đồ để xây. Lô viền đỏ đang có công trình và sẽ bị thay.' : 'Hạng cao hơn mở thêm công trình. Càng cam kết lâu, công trình càng hiếm.'}
+          {item ? 'Bấm vào một lô đất trên bản đồ để xây: lô vàng là đất trống, lô đỏ đang có công trình và sẽ bị thay.' : 'Hạng cao hơn mở thêm công trình. Càng cam kết lâu, công trình càng hiếm.'}
         </p>
       </Card>
       <CityView owner={player} onPick={item ? place : undefined} />
