@@ -77,6 +77,7 @@ export function Login() {
         <div><Button type="submit" variant="primary" disabled={busy}>{signIn.isPending && signIn.variables?.kind === 'guest' ? 'Đang vào…' : 'Vào với tên này'}</Button></div>
       </form>
       <Muted small>Tài khoản khách gắn với trình duyệt này. Đăng xuất hoặc xóa dữ liệu trình duyệt sẽ mất tiến độ.</Muted>
+      <Muted small>Khi đăng nhập, bạn đồng ý với <a className="underline" href="privacy.html" target="_blank" rel="noreferrer">chính sách quyền riêng tư</a>.</Muted>
     </Card>
   );
 }
