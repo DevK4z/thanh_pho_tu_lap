@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ITEMS, LV, TIERS, type ItemId, type Player, type SessionResult } from '@tptl/shared';
 import { Icon } from '../components/Icons';
-import { City, ItemArt } from '../components/Svg';
+import { CityView } from '../components/CityView';
+import { ItemArt } from '../components/Svg';
 import { Card, Eyebrow, Stat3, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
 import { usePatchMyPlayer } from '../lib/queries';
@@ -60,7 +61,7 @@ export function Reward({ gid, player, result: r, onAllPlaced }: { gid: string; p
           {item ? 'Bấm vào một lô đất nét đứt trên bản đồ để xây. Lô viền đỏ đang có công trình và sẽ bị thay.' : 'Hạng cao hơn mở thêm công trình. Càng cam kết lâu, công trình càng hiếm.'}
         </p>
       </Card>
-      <City owner={player} onPick={item ? place : undefined} />
+      <CityView owner={player} onPick={item ? place : undefined} />
     </section>
   );
 }

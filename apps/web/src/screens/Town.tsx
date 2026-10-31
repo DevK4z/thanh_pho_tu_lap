@@ -1,5 +1,6 @@
 import { HST, ITEMS, SLOTS, TIERS, dkey, emptyDay, keysBack, levelOf, metrics, popOf, streakMultiplier, streakOf, sumDays, type GroupDetail, type Player } from '@tptl/shared';
 import { Icon, type IconName } from '../components/Icons';
+import { CityView } from '../components/CityView';
 import { City, House, ItemArt } from '../components/Svg';
 import { Banner, Button, Meter } from '../components/ui';
 import { fmtMin, num, pct } from '../lib/format';
@@ -53,7 +54,7 @@ export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDet
             </button>
           ))}
         </nav>
-        <City owner={me} />
+        <div className="min-w-0"><CityView owner={me} /></div>
         <aside className="pk info">
           <div className="ipill">{hs.n}</div>
           <div className="ihouse"><House style={me.style} lv={L.lv} viewBox="-60 -118 120 150" /></div>
