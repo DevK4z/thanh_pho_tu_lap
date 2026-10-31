@@ -10,6 +10,8 @@ const schema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional().transform((v) => v || undefined),
   FACEBOOK_APP_ID: z.string().optional().transform((v) => v || undefined),
   FACEBOOK_APP_SECRET: z.string().optional().transform((v) => v || undefined),
+  /** Email quản trị viên của ứng dụng, cách nhau bằng dấu phẩy. Đăng nhập Google/Facebook bằng email này sẽ xem được báo cáo mọi nhóm. */
+  ADMIN_EMAILS: z.string().default('').transform((v) => new Set(v.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean))),
   NODE_ENV: z.string().default('development'),
 });
 export type Env = z.infer<typeof schema>;

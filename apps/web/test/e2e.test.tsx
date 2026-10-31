@@ -9,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../api/src/app';
 import { openDatabase, type Database } from '../../api/src/db/client';
 import { loadEnv } from '../../api/src/env';
+import { users } from '../../api/src/db/schema';
+import { eq } from 'drizzle-orm';
 
 let server: FastifyInstance;
 let database: Database;
@@ -30,7 +32,7 @@ function installFullscreen() {
 
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: resolve(__dirname, '../../api/drizzle') });
-  server = await buildApp({ db: database.db, env: loadEnv({}), rateLimit: false });
+  server = await buildApp({ db: database.db, env: loadEnv({ ADMIN_EMAILS: 'quantri@example.com' }), rateLimit: false });
   await server.listen({ port: 0, host: '127.0.0.1' });
   vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:' + (server.server.address() as AddressInfo).port);
   vi.spyOn(Date, 'now').mockImplementation(() => realNow() + shift);
@@ -184,11 +186,39 @@ describe('giao diện + API', () => {
     fireEvent.click(join);
     await find('Chọn khu đất đầu tiên');
     expect(screen.queryByRole('button', { name: 'Quản trị' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Báo cáo' })).toBeNull();
     fireEvent.click(btn('Bắt đầu xây thành phố'));
     await find('Thành phố của 2 thành viên, xếp theo tiến độ xây dựng.');
 
     fireEvent.click(btn('Đổi nhóm'));
     await find('Chọn nhóm');
     await find('Đã rời nhóm. Tiến độ trong nhóm cũ vẫn được giữ.');
+  }, 30_000);
+
+  it('quản trị viên ứng dụng: xem báo cáo tỷ lệ hoàn thành và bỏ cuộc của từng người', async () => {
+    cleanup();
+    shift = 0;
+    // Tạo tài khoản rồi gắn email Google nằm trong ADMIN_EMAILS (test không đăng nhập Google thật được).
+    const base = 'http://127.0.0.1:' + (server.server.address() as AddressInfo).port;
+    const r = await (await fetch(base + '/api/auth/guest', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Quản trị' }) })).json();
+    await database.db.update(users).set({ provider: 'google', email: 'QuanTri@example.com' }).where(eq(users.id, r.me.id));
+    localStorage.setItem('tptl-token', r.token);
+    mount();
+    await find('Chọn nhóm');
+    fireEvent.click(btn('Báo cáo'));
+    await find('Báo cáo hoàn thành nhiệm vụ');
+    await find('An');
+    const rowOf = (name: string) => screen.getByText(name, { selector: 'b' }).closest('tr')!;
+    // An: 1 phiên 5 phút hoàn thành, 1 phiên 5 phút thất bại → hoàn thành 50%, bỏ cuộc 50%, thời gian 5/10 = 50%.
+    const an = within(rowOf('An'));
+    expect(an.getAllByText('50%')).toHaveLength(3);
+    expect(an.getByText('5 / 10')).toBeTruthy();
+    expect(an.getByText('Lớp 10A1')).toBeTruthy();
+    // Bình chưa có phiên nào.
+    expect(within(rowOf('Bình')).getAllByText('–').length).toBeGreaterThan(0);
+    fireEvent.click(btn('Từ đầu'));
+    await find(/Tính từ đầu đến nay./);
+    fireEvent.click(btn('← Về ứng dụng'));
+    await find('Chọn nhóm');
   }, 30_000);
 });

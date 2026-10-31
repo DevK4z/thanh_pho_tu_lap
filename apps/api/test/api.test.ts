@@ -18,7 +18,7 @@ beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });
   app = await buildApp({
     db: database.db,
-    env: loadEnv({}),
+    env: loadEnv({ ADMIN_EMAILS: ' Boss-Account@Example.com , khac@example.com' }),
     rateLimit: false,
     verifiers: {
       google: async (cred) => {
@@ -262,6 +262,30 @@ describe('luồng nhóm và phiên tập trung', () => {
 
     const d = (await call('GET', '/groups/' + gid, C.token)).body as GroupDetail;
     expect(d.players.find((p) => p.id === d.meId)!.quitReasons).toEqual({ violation: 1 });
+  });
+
+  it('báo cáo admin: chỉ email trong ADMIN_EMAILS (đăng nhập Google) xem được, đủ tỷ lệ từng người', async () => {
+    // Khách không có email nên không thể là admin; Google với email khác cũng không.
+    expect((await call('GET', '/admin/report', A.token)).status).toBe(403);
+    const other = (await call('POST', '/auth/google', undefined, { credential: 'nguoi-thuong' })).body;
+    expect(other.me.isAdmin).toBe(false);
+    expect((await call('GET', '/admin/report', other.token)).body.error.code).toBe('admin_only');
+
+    const boss = (await call('POST', '/auth/google', undefined, { credential: 'boss-account' })).body;
+    expect(boss.me.isAdmin).toBe(true);
+    expect((await call('GET', '/me', boss.token)).body.isAdmin).toBe(true);
+    const r = await call('GET', '/admin/report', boss.token);
+    expect(r.status).toBe(200);
+    const byName = Object.fromEntries((r.body.rows as { name: string }[]).map((x) => [x.name, x]));
+    // An: 1 phiên 25 phút hoàn thành.
+    expect(byName['An']).toMatchObject({ groupName: 'Lớp 10A1', registered: 1, done: 1, failed: 0, completionRate: 1, quitRate: 0, plannedMin: 25, doneMin: 25, timeRate: 1 });
+    // Chi: 7 phiên hoàn thành, 1 thất bại (5 phút mỗi phiên).
+    expect(byName['Chi']).toMatchObject({ registered: 8, done: 7, failed: 1, completionRate: 7 / 8, quitRate: 1 / 8, plannedMin: 40, doneMin: 35, bestStreak: 6 });
+    expect(r.body.totals).toMatchObject({ players: 3, groups: 1 });
+    expect(r.body.totals.registered).toBe(r.body.totals.done + r.body.totals.failed + r.body.totals.active);
+    // Lọc theo số ngày; tham số sai bị từ chối.
+    expect((await call('GET', '/admin/report?days=7', boss.token)).body.days).toBe(7);
+    expect((await call('GET', '/admin/report?days=0', boss.token)).status).toBe(400);
   });
 
   it('ngày trên máy lệch quá xa bị từ chối', async () => {

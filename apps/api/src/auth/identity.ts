@@ -15,7 +15,9 @@ export function googleVerifier(clientId: string): Verifier {
     });
     const p = ticket.getPayload();
     if (!p?.sub) throw new HttpError(401, 'invalid_credential', 'Không xác minh được tài khoản Google.');
-    return { sub: p.sub, name: p.name || p.email || 'Người dùng Google', email: p.email ?? null, avatarUrl: p.picture ?? null };
+    // Chỉ nhận email Google đã xác minh, vì quyền admin dựa trên email.
+    const email = p.email && p.email_verified !== false ? p.email : null;
+    return { sub: p.sub, name: p.name || p.email || 'Người dùng Google', email, avatarUrl: p.picture ?? null };
   };
 }
 

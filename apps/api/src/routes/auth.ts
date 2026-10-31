@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { LIMITS, type Me, type Provider, type PublicConfig } from '@tptl/shared';
+import { LIMITS, type Provider, type PublicConfig } from '@tptl/shared';
 import type { Ctx, User } from '../app';
 import { authSessions, users } from '../db/schema';
 import { HttpError, parse } from '../errors';
@@ -10,13 +10,9 @@ import { hashToken, newToken } from '../auth/tokens';
 
 export const cleanName = (max: number) => z.string().transform((s) => s.trim().replace(/\s+/g, ' ')).pipe(z.string().min(1, 'không được để trống').max(max));
 
-export function toMe(u: User): Me {
-  return { id: u.id, name: u.name, provider: u.provider, avatarUrl: u.avatarUrl, currentGroupId: u.currentGroupId };
-}
-
 const authLimit = { rateLimit: { max: 20, timeWindow: '1 minute' } };
 
-export function authRoutes(app: FastifyInstance, { db, env, verifiers, requireUser }: Ctx) {
+export function authRoutes(app: FastifyInstance, { db, env, verifiers, requireUser, toMe }: Ctx) {
   async function issue(user: User) {
     const token = newToken();
     await db.insert(authSessions).values({ tokenHash: hashToken(token), userId: user.id });

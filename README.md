@@ -11,6 +11,7 @@ Mini app cho CLB rèn luyện kỷ luật tự thân và khả năng tập trung
 - **Phần thưởng:** mỗi phiên hoàn thành nhận 50 vàng, 50 gỗ và một công trình (cam kết càng lâu công trình càng hiếm). Chuỗi phiên thành công liên tiếp nhân thưởng: ×2 từ chuỗi 5, ×3 từ chuỗi 10, ×3,5 từ chuỗi 15.
 - Mỗi thành viên có thành phố riêng; theo dõi vàng, gỗ, chuỗi hiện tại, chuỗi dài nhất, số phiên thành công/thất bại.
 - Bảng cá nhân, bảng cả nhóm (đánh giá hiệu quả chương trình), quản trị nhóm (từng thành viên, nhật ký, ngân hàng câu hỏi, xuất CSV).
+- **Báo cáo cho quản trị viên ứng dụng** (trang `#bao-cao`): tỷ lệ hoàn thành, tỷ lệ bỏ cuộc và tỷ lệ thời gian hoàn thành trên thời gian đăng ký của từng người ở mọi nhóm; lọc theo 7/30/90 ngày, theo nhóm, xuất CSV. Quản trị viên là người đăng nhập Google/Facebook bằng email nằm trong biến `ADMIN_EMAILS` của API.
 
 ## Kiến trúc
 
@@ -102,6 +103,7 @@ Tất cả dưới `/api`, dữ liệu JSON, xác thực bằng header `Authoriz
 | POST | `/groups/:gid/plot` `{ item, slot }` | Đặt phần thưởng lên bản đồ |
 | GET | `/groups/:gid/players/:pid/sessions` | Nhật ký phiên (chủ nhân hoặc trưởng nhóm) |
 | GET / POST / DELETE | `/groups/:gid/questions[/:qid]` | Ngân hàng câu hỏi của nhóm (trưởng nhóm) |
+| GET | `/admin/report[?days=30]` | Báo cáo tỷ lệ hoàn thành và bỏ cuộc của từng người ở mọi nhóm (quản trị viên ứng dụng) |
 
 ## Triển khai
 
@@ -110,6 +112,7 @@ Giao diện là trang tĩnh (GitHub Pages); API cần một máy chủ Node.js v
 1. **API + database trên Render**: Dashboard > New > Blueprint > chọn repo này ([render.yaml](render.yaml) tạo dịch vụ `tptl-api` từ [apps/api/Dockerfile](apps/api/Dockerfile) và database `tptl-db`). Điền biến:
    - `WEB_ORIGIN`: địa chỉ trang web, ví dụ `https://ten-ban.github.io` (nhiều địa chỉ cách nhau bằng dấu phẩy).
    - `GOOGLE_CLIENT_ID`, `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` (xem bên dưới; bỏ trống thì nút tương ứng bị khóa).
+   - `ADMIN_EMAILS`: email quản trị viên ứng dụng, cách nhau bằng dấu phẩy. Đặt ở biến môi trường thay vì trong code để không lộ email trên repo công khai.
 
    Gói miễn phí của Render sẽ ngủ khi không có ai dùng, lần mở đầu tiên chậm vài chục giây; database miễn phí có thời hạn. Có thể dùng nơi khác chạy được Docker (Railway, Fly.io, VPS) với cùng các biến.
 2. **Web trên GitHub Pages**: Settings > Pages > Source: GitHub Actions. Settings > Secrets and variables > Actions > Variables: tạo `API_URL` = địa chỉ API (ví dụ `https://tptl-api.onrender.com`). Mỗi lần push lên `main`, [pages.yml](.github/workflows/pages.yml) build và triển khai; [ci.yml](.github/workflows/ci.yml) chạy kiểm tra kiểu, test và build.

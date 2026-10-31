@@ -30,6 +30,7 @@ export function Who({ me, group, isOwner, locked }: { me: Me; group: GroupInfo |
       {group && <div>Nhóm {group.name}{isOwner ? ' · trưởng nhóm' : ''}</div>}
       {!locked && (
         <div className="flex gap-3">
+          {me.isAdmin && <LinkButton onClick={() => { location.hash = location.hash === '#bao-cao' ? '' : '#bao-cao'; }}>{location.hash === '#bao-cao' ? 'Về ứng dụng' : 'Báo cáo'}</LinkButton>}
           {me.currentGroupId && <LinkButton onClick={switchGroup} disabled={leave.isPending}>Đổi nhóm</LinkButton>}
           <LinkButton onClick={logout}>Đăng xuất</LinkButton>
         </div>
