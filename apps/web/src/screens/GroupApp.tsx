@@ -80,7 +80,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   if (!d) return <Layout who={who}><Card><Muted>Đang tải dữ liệu nhóm…</Muted></Card></Layout>;
 
   const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['mine', 'Của tôi'], ['group', 'Nhóm']];
-  if (d.isOwner) tabs.push(['admin', 'Quản trị']);
+  if (d.canManage) tabs.push(['admin', 'Quản trị']);
   const current: Tab = inFlow || flow?.step === 'failed' ? 'focus' : flow?.step === 'reward' ? 'town' : tab;
   function go(t: Tab) {
     if (inFlow) { toast('Bạn đang trong phiên cam kết.'); return; }
@@ -106,7 +106,8 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     body = <FocusVerify me={me} s={flow.s} m={flow.m} onDone={async (result) => { await refresh(); setFlow({ step: 'reward', result }); }} />;
   } else if (flow?.step === 'failed') {
     body = <FocusFailed info={flow.info} onRetry={() => { setFlow(null); setTab('focus'); }} onTown={() => { setFlow(null); setTab('town'); }} />;
-  } else if (!player && current !== 'group') {
+  } else if (!player && current !== 'group' && !(current === 'admin' && d.canManage)) {
+    // Chưa có nhà thì tạo nhà trước; riêng bảng nhóm và tab Quản trị vẫn mở được (trưởng nhóm, quản trị viên chưa chơi).
     body = <Onboard gid={gid} defaultName={me.name} onCreated={() => setTab('town')} />;
   } else if (flow?.step === 'reward' && player && player.pending.length) {
     body = <Reward gid={gid} player={player} result={flow.result} onAllPlaced={() => { setFlow(null); setTab('town'); }} />;
@@ -116,7 +117,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     body = <FocusSetup gid={gid} player={player} onStart={(s) => setFlow({ step: 'run', s })} />;
   } else if (current === 'mine' && player) {
     body = <Mine gid={gid} player={player} onTab={go} />;
-  } else if (current === 'admin' && d.isOwner) {
+  } else if (current === 'admin' && d.canManage) {
     body = <Admin gid={gid} detail={d} />;
   } else {
     body = <GroupBoard detail={d} />;

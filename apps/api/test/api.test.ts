@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { dkey, type ActiveSession, type GroupDetail, type GroupSummary, type Me } from '@tptl/shared';
+import { dkey, type ActiveSession, type AdminReportRow, type GroupDetail, type GroupSummary, type Me } from '@tptl/shared';
 import { buildApp } from '../src/app';
 import { openDatabase, type Database } from '../src/db/client';
 import { focusSessions } from '../src/db/schema';
@@ -276,7 +276,7 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect((await call('GET', '/me', boss.token)).body.isAdmin).toBe(true);
     const r = await call('GET', '/admin/report', boss.token);
     expect(r.status).toBe(200);
-    const byName = Object.fromEntries((r.body.rows as { name: string }[]).map((x) => [x.name, x]));
+    const byName = Object.fromEntries((r.body.rows as AdminReportRow[]).map((x) => [x.name, x]));
     // An: 1 phiên 25 phút hoàn thành.
     expect(byName['An']).toMatchObject({ groupName: 'Lớp 10A1', registered: 1, done: 1, failed: 0, completionRate: 1, quitRate: 0, plannedMin: 25, doneMin: 25, timeRate: 1 });
     // Chi: 7 phiên hoàn thành, 1 thất bại (5 phút mỗi phiên).
@@ -286,6 +286,26 @@ describe('luồng nhóm và phiên tập trung', () => {
     // Lọc theo số ngày; tham số sai bị từ chối.
     expect((await call('GET', '/admin/report?days=7', boss.token)).body.days).toBe(7);
     expect((await call('GET', '/admin/report?days=0', boss.token)).status).toBe(400);
+    expect(byName['An'].groupId).toBe(gid);
+
+    // Quyền trưởng nhóm ở mọi nhóm, không cần là thành viên.
+    expect(boss.me.currentGroupId).toBeNull();
+    const d = await call('GET', '/groups/' + gid, boss.token);
+    expect(d.status).toBe(200);
+    expect(d.body).toMatchObject({ isOwner: false, canManage: true, meId: null });
+    const logs = await call('GET', `/groups/${gid}/players/${bPid}/sessions`, boss.token);
+    expect(logs.status).toBe(200);
+    expect(logs.body.length).toBeGreaterThan(0);
+    const q = await call('POST', `/groups/${gid}/questions`, boss.token, { act: 'all', q: 'Admin hỏi?', o: ['A', 'B', 'C', 'D'], a: 0 });
+    expect(q.status).toBe(201);
+    expect((await call('DELETE', `/groups/${gid}/questions/${q.body.id}`, boss.token)).status).toBe(200);
+    // Việc của cá nhân vẫn cần vào nhóm.
+    expect((await call('POST', `/groups/${gid}/sessions`, boss.token, { act: 'deep', minutes: 5, day: today() })).status).toBe(403);
+    // Người thường ngoài nhóm vẫn bị chặn; trưởng nhóm và thành viên giữ nguyên quyền.
+    expect((await call('GET', '/groups/' + gid, other.token)).status).toBe(403);
+    expect((await call('GET', `/groups/${gid}/players/${bPid}/sessions`, other.token)).status).toBe(403);
+    expect((await call('GET', '/groups/' + gid, A.token)).body).toMatchObject({ isOwner: true, canManage: true });
+    expect((await call('GET', '/groups/' + gid, B.token)).body).toMatchObject({ isOwner: false, canManage: false });
   });
 
   it('ngày trên máy lệch quá xa bị từ chối', async () => {

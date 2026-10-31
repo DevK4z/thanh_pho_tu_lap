@@ -9,10 +9,12 @@ import { requireMember, uuidParam } from './groups';
 
 const text = (max: number) => z.string().transform((s) => s.trim()).pipe(z.string().min(1, 'không được để trống').max(max));
 
-export function adminRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
+export function adminRoutes(app: FastifyInstance, { db, requireUser, isAdmin }: Ctx) {
+  /** Trưởng nhóm, hoặc quản trị viên ứng dụng (mọi nhóm). */
   async function requireOwner(u: User, gid: string) {
-    const g = await requireMember(db, u, gid);
-    if (g.ownerId !== u.id) throw new HttpError(403, 'owner_only', 'Chỉ trưởng nhóm làm được việc này.');
+    const admin = isAdmin(u);
+    const g = await requireMember(db, u, gid, admin);
+    if (g.ownerId !== u.id && !admin) throw new HttpError(403, 'owner_only', 'Chỉ trưởng nhóm làm được việc này.');
     return g;
   }
   const toQ = (q: typeof questions.$inferSelect): GroupQuestion => ({ id: q.id, act: q.act, q: q.q, o: q.options, a: q.answer });

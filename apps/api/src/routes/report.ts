@@ -23,7 +23,7 @@ export function reportRoutes(app: FastifyInstance, { db, requireUser, isAdmin }:
       status ? sql<number>`count(${s.id}) filter (where ${s.status} = ${status})::int` : sql<number>`count(${s.id})::int`;
     const rows = await db
       .select({
-        playerId: players.id, name: players.name, groupName: groups.name, provider: users.provider, email: users.email,
+        playerId: players.id, name: players.name, groupId: groups.id, groupName: groups.name, provider: users.provider, email: users.email,
         currentStreak: players.currentStreak, bestStreak: players.bestStreak, gold: players.gold, wood: players.wood,
         createdAt: players.createdAt, lastAt: players.lastAt,
         registered: count(), done: count('done'), failed: count('quit'), active: count('active'),
@@ -40,7 +40,7 @@ export function reportRoutes(app: FastifyInstance, { db, requireUser, isAdmin }:
     const out: AdminReportRow[] = rows.map((r) => {
       const ended = r.done + r.failed;
       return {
-        playerId: r.playerId, name: r.name, groupName: r.groupName, provider: r.provider, email: r.email,
+        playerId: r.playerId, name: r.name, groupId: r.groupId, groupName: r.groupName, provider: r.provider, email: r.email,
         registered: r.registered, done: r.done, failed: r.failed, active: r.active,
         completionRate: rate(r.done, ended), quitRate: rate(r.failed, ended),
         plannedMin: Math.round(r.plannedSec / 60), doneMin: Math.round(r.doneSec / 60), timeRate: rate(r.doneSec, r.plannedSec),
