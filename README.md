@@ -6,8 +6,8 @@ Mini app cho CLB rèn luyện kỷ luật tự thân và khả năng tập trung
 
 - Đăng nhập bằng Google, Facebook hoặc tài khoản khách (chỉ cần nhập tên).
 - Chọn lập nhóm mới hoặc tham gia nhóm có sẵn (nút tham gia bị khóa khi chưa có nhóm nào). Người lập nhóm là trưởng nhóm, có tab Quản trị. Đổi nhóm bất kỳ lúc nào; tiến độ ở mỗi nhóm được giữ lại.
-- Đăng ký phiên tập trung trên máy (học sâu, viết) với thời gian tối thiểu 5–180 phút.
-- **Chống gian lận:** phiên chạy ở chế độ toàn màn hình. Đổi tab, thu nhỏ trình duyệt, click ra ngoài cửa sổ hoặc thoát toàn màn hình (kể cả bấm Escape) quá 3 giây là phiên thất bại và chuỗi về 0; quay lại kịp thì chỉ ghi cảnh báo. Có câu hỏi kiểm tra hiện diện ngẫu nhiên và câu hỏi xác nhận sau phiên.
+- Đăng ký phiên tập trung (đọc sách giấy, học sâu trên máy, viết, vận động, chăm cây) với thời gian tối thiểu 5–180 phút.
+- **Chống gian lận (phiên trên máy: học sâu, viết):** phiên chạy ở chế độ toàn màn hình. Đổi tab, thu nhỏ trình duyệt, click ra ngoài cửa sổ hoặc thoát toàn màn hình (kể cả bấm Escape) quá 3 giây là phiên thất bại và chuỗi về 0; quay lại kịp thì chỉ ghi cảnh báo. Có câu hỏi kiểm tra hiện diện ngẫu nhiên và câu hỏi xác nhận sau phiên. Hoạt động ngoài màn hình (đọc sách giấy, vận động, chăm cây) không giám sát rời màn hình vì người dùng cất máy đi; cuối phiên phải trả lời câu hỏi và xác nhận đã làm đủ thời gian. Dừng giữa chừng ở bất kỳ hoạt động nào cũng là thất bại và mất chuỗi.
 - **Phần thưởng:** mỗi phiên hoàn thành nhận 50 vàng, 50 gỗ và một công trình (cam kết càng lâu công trình càng hiếm). Chuỗi phiên thành công liên tiếp nhân thưởng: ×2 từ chuỗi 5, ×3 từ chuỗi 10, ×3,5 từ chuỗi 15.
 - Mỗi thành viên có thành phố riêng; theo dõi vàng, gỗ, chuỗi hiện tại, chuỗi dài nhất, số phiên thành công/thất bại.
 - Bảng cá nhân, bảng cả nhóm (đánh giá hiệu quả chương trình), quản trị nhóm (từng thành viên, nhật ký, ngân hàng câu hỏi, xuất CSV).
@@ -137,6 +137,6 @@ Giao diện là trang tĩnh (GitHub Pages); API cần một máy chủ Node.js v
 
 - Tài khoản khách gắn với trình duyệt (token trong localStorage). Đăng xuất hoặc xóa dữ liệu trình duyệt sẽ mất tài khoản; app hỏi xác nhận trước khi đăng xuất khách.
 - Việc rời màn hình do trình duyệt phát hiện nên người rành kỹ thuật vẫn có thể chặn báo cáo này; thời gian phiên, câu hỏi, đáp án, điểm, chuỗi và phần thưởng thì do máy chủ quyết định.
-- iPhone và iPad (Safari) không hỗ trợ Fullscreen API cho trang web, nên không bắt đầu phiên được trên các máy này; dùng máy tính hoặc Android.
+- iPhone và iPad (Safari) không hỗ trợ Fullscreen API cho trang web, nên không bắt đầu được phiên trên máy ở các thiết bị này; vẫn dùng được các hoạt động ngoài màn hình.
 - Phím Escape khi đang toàn màn hình do trình duyệt xử lý và không tới được trang, nên được phát hiện qua sự kiện `fullscreenchange`.
 - Không đo chuyển động mắt/đầu; độ tập trung ước tính qua rời trang, câu hỏi kiểm tra và tự đánh giá.

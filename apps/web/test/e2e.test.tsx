@@ -84,8 +84,10 @@ describe('giao diện + API', () => {
 
     fireEvent.click(tab('Tập trung'));
     await find('Cam kết trước, tập trung sau');
-    // Chỉ còn hoạt động trên máy.
-    expect(screen.queryByRole('button', { name: /Đọc sách giấy/ })).toBeNull();
+    // Đủ 5 hoạt động; hoạt động ngoài màn hình không cần toàn màn hình.
+    for (const n of [/Đọc sách giấy/, /Học sâu trên máy/, /Viết và suy ngẫm/, /Vận động/, /Chăm cây/]) expect(btn(n)).toBeTruthy();
+    fireEvent.click(btn(/Đọc sách giấy/));
+    expect(btn(/Cam kết 25 phút và bắt đầu/)).toBeTruthy();
     expect(screen.getByText('0 phiên')).toBeTruthy();
     fireEvent.click(btn(/Học sâu trên máy/));
     fireEvent.click(btn('5 phút'));

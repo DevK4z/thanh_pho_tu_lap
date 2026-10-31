@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ACTS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, SESSION_ACTS, TIERS,
+  ACTS, ACT_KEYS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, TIERS,
   dkey, nextStreakTier, rewardFor, tierFor, type ActKey, type ActiveSession, type Player,
 } from '@tptl/shared';
 import { Icon } from '../components/Icons';
@@ -8,25 +8,34 @@ import { Banner, Button, Card, Check, Chip, Eyebrow, Field, Grid, inputCls, Opti
 import { enterFullscreen, exitFullscreen, fullscreenSupported } from '../focus/useAntiCheat';
 import { api, errorMessage } from '../lib/api';
 
-const PREP = [
-  'Điện thoại đã cất xa tầm tay và tắt âm',
-  'Đã đóng các tab và ứng dụng không cần cho phiên này',
-  `Tôi hiểu phiên chạy toàn màn hình; đổi tab, click ra ngoài hoặc thoát toàn màn hình quá ${GRACE_SECONDS} giây là thất bại và mất chuỗi`,
-];
+const PREP = {
+  screen: [
+    'Điện thoại đã cất xa tầm tay và tắt âm',
+    'Đã đóng các tab và ứng dụng không cần cho phiên này',
+    `Tôi hiểu phiên chạy toàn màn hình; đổi tab, click ra ngoài hoặc thoát toàn màn hình quá ${GRACE_SECONDS} giây là thất bại và mất chuỗi`,
+  ],
+  offline: [
+    'Tôi sẽ chuyển điện thoại sang Không làm phiền và cất đi ngay sau khi bấm bắt đầu',
+    'Đã chuẩn bị đủ vật dụng cho hoạt động',
+    'Tôi hiểu rằng quay lại sớm hoặc dừng giữa chừng là thất bại và mất chuỗi',
+  ],
+};
 
 export function FocusSetup({ gid, player, onStart }: { gid: string; player: Player; onStart: (s: ActiveSession) => void }) {
   const toast = useToast();
-  const [act, setAct] = useState<ActKey>(SESSION_ACTS[0]);
+  const [act, setAct] = useState<ActKey>('deep');
   const [dur, setDur] = useState<number | ''>(25);
   const [goal, setGoal] = useState('');
-  const [checks, setChecks] = useState(PREP.map(() => false));
+  const [checks, setChecks] = useState([false, false, false]);
   const [busy, setBusy] = useState(false);
   const canFullscreen = fullscreenSupported();
   const a = ACTS[act];
+  const screenMode = a.mode === 'screen';
   const min = Number(dur) || 0;
   const tier = tierFor(min);
   const validDur = Number.isInteger(min) && min >= MIN_MINUTES && min <= MAX_MINUTES;
-  const ok = checks.every(Boolean) && validDur && canFullscreen;
+  // Chỉ phiên trên máy cần toàn màn hình; hoạt động ngoài màn hình thì người dùng cất máy đi.
+  const ok = checks.every(Boolean) && validDur && (!screenMode || canFullscreen);
   const reward = rewardFor(player.currentStreak + 1);
   const next = nextStreakTier(player.currentStreak + 1);
 
@@ -34,12 +43,14 @@ export function FocusSetup({ gid, player, onStart }: { gid: string; player: Play
     if (!validDur) { toast(`Thời gian cam kết cần từ ${MIN_MINUTES} đến ${MAX_MINUTES} phút.`); return; }
     setBusy(true);
     // Bật toàn màn hình trước, ngay trong cú bấm của người dùng (trình duyệt chỉ cho phép lúc này).
-    try {
-      await enterFullscreen();
-    } catch {
-      toast('Không bật được chế độ toàn màn hình. Hãy cho phép toàn màn hình rồi thử lại.');
-      setBusy(false);
-      return;
+    if (screenMode) {
+      try {
+        await enterFullscreen();
+      } catch {
+        toast('Không bật được chế độ toàn màn hình. Hãy cho phép toàn màn hình rồi thử lại.');
+        setBusy(false);
+        return;
+      }
     }
     try {
       onStart(await api<ActiveSession>('POST', `/groups/${gid}/sessions`, { act, minutes: min, goal: goal.trim(), day: dkey(Date.now()) }));
@@ -53,10 +64,10 @@ export function FocusSetup({ gid, player, onStart }: { gid: string; player: Play
   return (
     <section className="flex flex-col gap-3.5">
       <div><Eyebrow>Đăng ký phiên</Eyebrow><h2>Cam kết trước, tập trung sau</h2></div>
-      {!canFullscreen && (
+      {!canFullscreen && screenMode && (
         <Banner tone="bad">
-          Trình duyệt này không hỗ trợ chế độ toàn màn hình (thường gặp trên iPhone và iPad), nên chưa bắt đầu phiên được.
-          Hãy dùng máy tính, hoặc điện thoại Android với Chrome.
+          Trình duyệt này không hỗ trợ chế độ toàn màn hình (thường gặp trên iPhone và iPad), nên chưa bắt đầu được phiên trên máy.
+          Hãy dùng máy tính hoặc điện thoại Android với Chrome, hoặc chọn một hoạt động ngoài màn hình.
         </Banner>
       )}
       <Card className="border-lamp">
@@ -82,9 +93,10 @@ export function FocusSetup({ gid, player, onStart }: { gid: string; player: Play
       </Card>
       <Card>
         <h3>1. Chọn hoạt động</h3>
-        <Grid>
-          {SESSION_ACTS.map((k) => (
-            <Option key={k} pressed={act === k} onClick={() => setAct(k)} title={ACTS[k].n} sub="Trên máy · toàn màn hình, giám sát rời màn hình" />
+        <Grid cols={3}>
+          {ACT_KEYS.map((k) => (
+            <Option key={k} pressed={act === k} onClick={() => { setAct(k); setChecks([false, false, false]); }} title={ACTS[k].n}
+              sub={ACTS[k].mode === 'screen' ? 'Trên máy · toàn màn hình, giám sát rời màn hình' : 'Ngoài màn hình · cất điện thoại'} />
           ))}
         </Grid>
         <p className="text-[13px] text-muted">{a.d}</p>
@@ -109,9 +121,9 @@ export function FocusSetup({ gid, player, onStart }: { gid: string; player: Play
       <Card>
         <h3>4. Chuẩn bị</h3>
         <div>
-          {PREP.map((c, i) => <Check key={i} checked={checks[i]} onChange={(v) => setChecks((x) => x.map((y, j) => (j === i ? v : y)))}>{c}</Check>)}
+          {PREP[a.mode].map((c, i) => <Check key={act + i} checked={checks[i]} onChange={(v) => setChecks((x) => x.map((y, j) => (j === i ? v : y)))}>{c}</Check>)}
         </div>
-        <div><Button variant="primary" big disabled={!ok || busy} onClick={begin}>Vào toàn màn hình và bắt đầu {min || '…'} phút</Button></div>
+        <div><Button variant="primary" big disabled={!ok || busy} onClick={begin}>{screenMode ? 'Vào toàn màn hình và bắt đầu' : 'Cam kết'} {min || '…'} phút{screenMode ? '' : ' và bắt đầu'}</Button></div>
       </Card>
     </section>
   );
