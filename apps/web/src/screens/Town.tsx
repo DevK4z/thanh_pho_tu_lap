@@ -1,4 +1,4 @@
-import { HST, ITEMS, SLOTS, TIERS, dkey, emptyDay, keysBack, levelOf, metrics, popOf, streakOf, sumDays, type GroupDetail, type Player } from '@tptl/shared';
+import { HST, ITEMS, SLOTS, TIERS, dkey, emptyDay, keysBack, levelOf, metrics, popOf, streakMultiplier, streakOf, sumDays, type GroupDetail, type Player } from '@tptl/shared';
 import { Icon, type IconName } from '../components/Icons';
 import { City, House, ItemArt } from '../components/Svg';
 import { Banner, Button, Meter } from '../components/ui';
@@ -16,6 +16,13 @@ export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDet
     ['pop', 'Dân số', popOf(me.plot)], ['min', 'Phút tập trung', Math.round(me.totalFocusMin)], ['disc', 'Kỷ luật', num(m.disc)],
     ['focus', 'Tập trung sâu', num(m.focus)], ['ok', 'Cam kết', pct(m.comp)],
   ];
+  const total = me.tasksDone + me.tasksFailed;
+  const mult = streakMultiplier(me.currentStreak);
+  const resources: [IconName, string, string | number][] = [
+    ['gold', 'Vàng', me.gold.toLocaleString('vi-VN')], ['wood', 'Gỗ', me.wood.toLocaleString('vi-VN')],
+    ['fire', 'Chuỗi phiên', me.currentStreak + (mult > 1 ? ` · ×${String(mult).replace('.', ',')}` : '')],
+    ['shield', 'Thành công / thất bại', `${me.tasksDone} / ${me.tasksFailed}` + (total ? ` (${Math.round((100 * me.tasksDone) / total)}%)` : '')],
+  ];
   const tools: [IconName, string, () => void, boolean?][] = [
     ['build', 'Xây dựng', onReward, !np], ['timer', 'Tập trung', () => onTab('focus')], ['chart', 'Tiến bộ', () => onTab('mine')], ['group', 'Cả nhóm', () => onTab('group')],
   ];
@@ -28,6 +35,9 @@ export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDet
       </div>
       <div className="pk statbar">
         {stats.map(([ic, label, v]) => <div key={label} className="stat"><Icon name={ic} /><div><span>{label}</span><b>{v}</b></div></div>)}
+      </div>
+      <div className="pk grid grid-cols-2 px-1.5 py-2 sm:grid-cols-4" aria-label="Tài nguyên">
+        {resources.map(([ic, label, v]) => <div key={label} className="stat"><Icon name={ic} /><div><span>{label}</span><b>{v}</b></div></div>)}
       </div>
       {np > 0 && (
         <Banner className="flex flex-wrap items-center justify-between gap-2.5">

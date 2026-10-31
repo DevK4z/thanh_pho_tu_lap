@@ -23,6 +23,9 @@ export const ACTS: Record<ActKey, Activity> = {
   plant: { n: 'Chăm cây', mode: 'offline', d: 'Trồng, tưới, tỉa cây. Cất điện thoại và quay lại khi hết giờ.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
 };
 export const ACT_KEYS: ActKey[] = ['read', 'deep', 'write', 'move', 'plant'];
+/** Hoạt động được đăng ký phiên mới: chỉ phiên trên máy (giám sát toàn màn hình). Các hoạt động ngoài màn hình
+    vẫn giữ trong ACTS để hiển thị lịch sử cũ. */
+export const SESSION_ACTS: ActKey[] = ACT_KEYS.filter((k) => ACTS[k].mode === 'screen');
 
 export const DURS = [5, 10, 15, 25, 45, 60, 90];
 export const MIN_MINUTES = 5;
@@ -68,16 +71,31 @@ export const LV: Level[] = [
   { lv: 5, at: 600, n: 'Nhà mẫu của thành phố' },
 ];
 
-export type QuitReason = 'tired' | 'urgent' | 'distracted' | 'hard' | 'closed' | 'other';
+export type QuitReason = 'tired' | 'urgent' | 'distracted' | 'hard' | 'closed' | 'violation' | 'other';
 export const REASONS: Record<QuitReason, string> = {
   tired: 'Mệt hoặc buồn ngủ',
   urgent: 'Có việc đột xuất',
   distracted: 'Bị xao nhãng',
   hard: 'Việc quá khó hoặc chán',
   closed: 'Đóng trang giữa chừng',
+  violation: 'Rời màn hình quá 3 giây',
   other: 'Lý do khác',
 };
 export const REASON_KEYS = Object.keys(REASONS) as QuitReason[];
+/** Lý do người dùng tự chọn khi bấm dừng phiên (closed và violation do hệ thống ghi). */
+export const USER_REASON_KEYS = REASON_KEYS.filter((k) => k !== 'closed' && k !== 'violation');
+
+/* ---------- phần thưởng và chống gian lận ---------- */
+/** Phần thưởng cơ bản cho mỗi phiên hoàn thành, trước hệ số chuỗi. */
+export const BASE_REWARD = { gold: 50, wood: 50 };
+/** Rời màn hình (đổi tab, click ra ngoài, thoát toàn màn hình) lâu hơn số giây này thì phiên thất bại. */
+export const GRACE_SECONDS = 3;
+/** Mốc chuỗi phiên thành công liên tiếp và hệ số nhân thưởng tương ứng (mốc cao trước). */
+export const STREAK_TIERS: { at: number; mult: number }[] = [
+  { at: 15, mult: 3.5 },
+  { at: 10, mult: 3 },
+  { at: 5, mult: 2 },
+];
 
 /* Bản đồ 7x7 lô; hàng 3 và cột 3 là đường, lô (1,1) là nhà chính. */
 export const GN = 7;

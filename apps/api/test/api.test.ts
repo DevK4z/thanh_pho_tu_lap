@@ -162,6 +162,8 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect(me.totalFocusMin).toBe(25);
     expect(me.pending).toHaveLength(1);
     expect(me.days[s.day]).toMatchObject({ s: 1, c: 1, pl: 1500, cs: 1500, dn: 2, ms: 1, qa: 3, qc: 2, fn: 1 });
+    expect(me).toMatchObject({ gold: 50, wood: 50, currentStreak: 1, bestStreak: 1, tasksDone: 1, tasksFailed: 0 });
+    expect(r.body).toMatchObject({ gold: 50, wood: 50, mult: 1, stats: { currentStreak: 1, tasksDone: 1 } });
     expect(d.isOwner).toBe(true);
   });
 
@@ -174,16 +176,21 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect((await call('POST', `/groups/${gid}/plot`, A.token, { item: 'cay', slot: 4 })).body.error.code).toBe('no_reward');
   });
 
-  it('phiên ngoài màn hình: cần xác nhận, ghi chú đủ dài, bỏ cuộc được ghi lý do', async () => {
-    const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'read', minutes: 10, day: today() })).body as ActiveSession;
-    expect(s).toMatchObject({ mode: 'offline', checks: [] });
-    expect(s.verify).toHaveLength(2);
+  it('không còn đăng ký được hoạt động ngoài màn hình', async () => {
+    for (const act of ['read', 'move', 'plant']) {
+      expect((await call('POST', `/groups/${gid}/sessions`, B.token, { act, minutes: 10, day: today() })).status).toBe(400);
+    }
+  });
+
+  it('phiên viết: ghi chú đủ dài, bỏ cuộc được ghi lý do', async () => {
+    const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'write', minutes: 10, day: today() })).body as ActiveSession;
+    expect(s).toMatchObject({ mode: 'screen' });
+    expect(s.verify).toHaveLength(1);
     shift = 600 * 1000;
-    const base = { awaySec: 0, dist: 0, self: 5, verify: [0, 0] };
-    expect((await call('POST', `/sessions/${s.id}/complete`, B.token, { ...base, note: 'một hai ba bốn năm sáu' })).body.error.code).toBe('not_confirmed');
-    expect((await call('POST', `/sessions/${s.id}/complete`, B.token, { ...base, confirmed: true, note: 'ngắn quá' })).body.error.code).toBe('note_too_short');
+    expect((await call('POST', `/sessions/${s.id}/complete`, B.token, { awaySec: 0, dist: 0, self: 5, verify: [0], note: 'ngắn quá' })).body.error.code).toBe('note_too_short');
     expect((await call('POST', `/me/leave-group`, B.token)).body.error.code).toBe('session_active');
-    expect((await call('POST', `/sessions/${s.id}/quit`, B.token, { reason: 'tired', awaySec: 0, dist: 0 })).status).toBe(200);
+    const q = await call('POST', `/sessions/${s.id}/quit`, B.token, { reason: 'tired', awaySec: 0, dist: 0 });
+    expect(q.body).toMatchObject({ lostStreak: 0, stats: { tasksFailed: 1, currentStreak: 0 } });
     const d = (await call('GET', '/groups/' + gid, B.token)).body as GroupDetail;
     const me = d.players.find((p) => p.id === bPid)!;
     expect(me.quitReasons).toEqual({ tired: 1 });
@@ -194,23 +201,23 @@ describe('luồng nhóm và phiên tập trung', () => {
   it('nhật ký: chủ nhân và trưởng nhóm xem được, người khác thì không', async () => {
     const own = await call('GET', `/groups/${gid}/players/${bPid}/sessions`, B.token);
     expect(own.body).toHaveLength(1);
-    expect(own.body[0]).toMatchObject({ status: 'quit', reason: 'tired', act: 'read' });
+    expect(own.body[0]).toMatchObject({ status: 'quit', reason: 'tired', act: 'write' });
     expect((await call('GET', `/groups/${gid}/players/${aPid}/sessions`, B.token)).status).toBe(403);
     expect((await call('GET', `/groups/${gid}/players/${bPid}/sessions`, A.token)).body).toHaveLength(1);
   });
 
   it('câu hỏi riêng của nhóm: chỉ trưởng nhóm sửa, được dùng trong phiên', async () => {
-    const q = { act: 'move', q: 'Câu hỏi riêng?', o: ['A', 'B', 'C', 'D'], a: 2 };
+    const q = { act: 'deep', q: 'Câu hỏi riêng?', o: ['A', 'B', 'C', 'D'], a: 2 };
     expect((await call('POST', `/groups/${gid}/questions`, B.token, q)).status).toBe(403);
     expect((await call('POST', `/groups/${gid}/questions`, A.token, { ...q, o: ['A', 'B'] })).status).toBe(400);
     const r = await call('POST', `/groups/${gid}/questions`, A.token, q);
     expect(r.status).toBe(201);
     expect((await call('GET', `/groups/${gid}/questions`, A.token)).body).toEqual([{ id: r.body.id, ...q }]);
-    // Hoạt động "move" chỉ có 3 câu mặc định + 2 câu chung + 1 câu riêng; phát đủ nhiều lần sẽ gặp câu riêng.
+    // Hoạt động "deep" có 3 câu mặc định + 2 câu chung + 1 câu riêng; phát đủ nhiều lần sẽ gặp câu riêng.
     let seen = false;
     for (let i = 0; i < 12 && !seen; i++) {
-      const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'move', minutes: 5, day: today() })).body as ActiveSession;
-      seen = s.verify.some((v) => v.id === r.body.id);
+      const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'deep', minutes: 5, day: today() })).body as ActiveSession;
+      seen = s.checks.concat(s.verify).some((v) => v.id === r.body.id);
       await call('POST', `/sessions/${s.id}/quit`, B.token, { reason: 'other', awaySec: 0, dist: 0 });
     }
     expect(seen).toBe(true);
@@ -222,6 +229,30 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect((await call('GET', '/groups/' + gid, B.token)).status).toBe(403);
     await call('POST', `/groups/${gid}/join`, B.token);
     expect(((await call('GET', '/groups/' + gid, B.token)).body as GroupDetail).meId).toBe(bPid);
+  });
+
+  it('chuỗi thành công nhân thưởng; thất bại đưa chuỗi về 0', async () => {
+    const C = await guest('Chi');
+    await call('POST', `/groups/${gid}/join`, C.token);
+    await call('POST', `/groups/${gid}/players`, C.token, { name: 'Chi', style: 'san', dailyGoal: 30 });
+    /** Chạy một phiên 5 phút trên máy: hoàn thành hoặc bị hệ thống đánh thất bại vì rời màn hình. */
+    async function run(ok: boolean) {
+      const s = (await call('POST', `/groups/${gid}/sessions`, C.token, { act: 'deep', minutes: 5, day: today() })).body as ActiveSession;
+      if (!ok) return (await call('POST', `/sessions/${s.id}/quit`, C.token, { reason: 'violation', awaySec: 4, dist: 1 })).body;
+      shift += 301_000;
+      return (await call('POST', `/sessions/${s.id}/complete`, C.token, { awaySec: 0, dist: 0, self: 5, verify: [0] })).body;
+    }
+    const got: [number, number, number][] = [];
+    for (let i = 0; i < 6; i++) { const r = await run(true); got.push([r.stats.currentStreak, r.mult, r.gold]); }
+    expect(got).toEqual([[1, 1, 50], [2, 1, 50], [3, 1, 50], [4, 1, 50], [5, 2, 100], [6, 2, 100]]);
+
+    const f = await run(false);
+    expect(f).toEqual({ lostStreak: 6, stats: { tasksDone: 6, tasksFailed: 1, currentStreak: 0, bestStreak: 6, gold: 400, wood: 400 } });
+    const again = await run(true);
+    expect(again).toMatchObject({ mult: 1, gold: 50, stats: { currentStreak: 1, bestStreak: 6, gold: 450 } });
+
+    const d = (await call('GET', '/groups/' + gid, C.token)).body as GroupDetail;
+    expect(d.players.find((p) => p.id === d.meId)!.quitReasons).toEqual({ violation: 1 });
   });
 
   it('ngày trên máy lệch quá xa bị từ chối', async () => {

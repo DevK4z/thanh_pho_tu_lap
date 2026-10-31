@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ITEMS, LV, TIERS, type ItemId, type Player, type SessionResult } from '@tptl/shared';
+import { Icon } from '../components/Icons';
 import { City, ItemArt } from '../components/Svg';
 import { Card, Eyebrow, Stat3, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
@@ -32,7 +33,12 @@ export function Reward({ gid, player, result: r, onAllPlaced }: { gid: string; p
         <Card>
           <Eyebrow>Kết quả phiên</Eyebrow>
           <h2>Hoàn thành {r.minutes} phút</h2>
-          <Stat3 items={[[r.focus, 'điểm tập trung'], [r.qc + '/' + r.qa, 'câu đúng'], [r.mode === 'screen' ? r.dist + r.missed : '–', 'xao nhãng']]} />
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xl font-bold">
+            <span className="flex items-center gap-1.5"><Icon name="gold" className="size-7" />+{r.gold} vàng</span>
+            <span className="flex items-center gap-1.5"><Icon name="wood" className="size-7" />+{r.wood} gỗ</span>
+            <span className="flex items-center gap-1.5 text-base"><Icon name="fire" className="size-6" />Chuỗi {r.stats.currentStreak}{r.mult > 1 ? ` · thưởng ×${String(r.mult).replace('.', ',')}` : ''}</span>
+          </div>
+          <Stat3 items={[[r.focus, 'điểm tập trung'], [r.qc + '/' + r.qa, 'câu đúng'], [r.mode === 'screen' ? r.dist + r.missed : '–', 'cảnh báo']]} />
           {r.newLv > r.prevLv && <p><b>Nhà của bạn lên giai đoạn mới: {LV[r.newLv - 1].n}.</b></p>}
           {r.shiny && <p>Điểm tập trung từ 85 trở lên nên công trình được mạ vàng.</p>}
         </Card>

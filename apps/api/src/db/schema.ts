@@ -45,6 +45,13 @@ export const players = pgTable('players', {
   plot: jsonb('plot').$type<PlotItem[]>().notNull().default([]),
   pending: jsonb('pending').$type<PendingReward[]>().notNull().default([]),
   quitReasons: jsonb('quit_reasons').$type<Partial<Record<QuitReason, number>>>().notNull().default({}),
+  gold: integer('gold').notNull().default(0),
+  wood: integer('wood').notNull().default(0),
+  /** Phiên thành công liên tiếp; về 0 khi thất bại. */
+  currentStreak: integer('current_streak').notNull().default(0),
+  bestStreak: integer('best_streak').notNull().default(0),
+  tasksDone: integer('tasks_done').notNull().default(0),
+  tasksFailed: integer('tasks_failed').notNull().default(0),
   createdAt: ts('created_at').notNull().defaultNow(),
   lastAt: ts('last_at'),
 }, (t) => [uniqueIndex('players_group_user_key').on(t.groupId, t.userId)]);

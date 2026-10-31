@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SLOTS, checkCount } from './constants';
-import { emptyDay, keysBack, levelOf, metrics, scoreSession, streakOf, sumDays, tierFor } from './metrics';
+import { emptyDay, keysBack, levelOf, metrics, nextStreakTier, rewardFor, scoreSession, streakMultiplier, streakOf, sumDays, tierFor } from './metrics';
 
 const NOW = new Date(2026, 9, 30, 15).getTime();
 
@@ -49,5 +49,15 @@ describe('metrics', () => {
     const d = { ...emptyDay(), c: 1 };
     expect(streakOf({ [k[0]]: d, [k[1]]: d, [k[2]]: d }, NOW)).toBe(3);
     expect(streakOf({ [k[0]]: d, [k[2]]: d, [k[3]]: d }, NOW)).toBe(2);
+  });
+
+  it('hệ số thưởng theo chuỗi', () => {
+    expect([0, 1, 4, 5, 9, 10, 14, 15, 40].map(streakMultiplier)).toEqual([1, 1, 1, 2, 2, 3, 3, 3.5, 3.5]);
+    expect(rewardFor(1)).toEqual({ gold: 50, wood: 50, mult: 1 });
+    expect(rewardFor(5)).toEqual({ gold: 100, wood: 100, mult: 2 });
+    expect(rewardFor(15)).toEqual({ gold: 175, wood: 175, mult: 3.5 });
+    expect(nextStreakTier(3)).toEqual({ at: 5, mult: 2 });
+    expect(nextStreakTier(12)).toEqual({ at: 15, mult: 3.5 });
+    expect(nextStreakTier(15)).toBeNull();
   });
 });

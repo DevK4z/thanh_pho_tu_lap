@@ -56,6 +56,15 @@ export function Mine({ gid, player: me, onTab }: { gid: string; player: Player; 
         <Card><Eyebrow>Kỷ luật tự thân</Eyebrow><BigNumber>{num(cur.disc)}</BigNumber><Meter value={cur.disc ?? 0} label="Điểm kỷ luật" /><Trend d={delta(cur.disc, prv.disc)} /></Card>
         <Card><Eyebrow>Tập trung sâu</Eyebrow><BigNumber>{num(cur.focus)}</BigNumber><Meter value={cur.focus ?? 0} label="Điểm tập trung" /><Trend d={delta(cur.focus, prv.focus)} /></Card>
       </Grid>
+      <Card>
+        <h3>Nhiệm vụ và tài nguyên (từ đầu đến nay)</h3>
+        <KV rows={[
+          ['Vàng', me.gold.toLocaleString('vi-VN')], ['Gỗ', me.wood.toLocaleString('vi-VN')],
+          ['Chuỗi phiên hiện tại', me.currentStreak], ['Chuỗi dài nhất', me.bestStreak],
+          ['Phiên thành công', me.tasksDone], ['Phiên thất bại', me.tasksFailed],
+          ['Tỷ lệ hoàn thành', me.tasksDone + me.tasksFailed ? Math.round((100 * me.tasksDone) / (me.tasksDone + me.tasksFailed)) + '%' : '–'],
+        ]} />
+      </Card>
       <Grid>
         <Card>
           <h3>Tính cam kết ({n} ngày)</h3>

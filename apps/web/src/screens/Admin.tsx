@@ -9,10 +9,10 @@ import { LogTable } from './LogTable';
 
 function exportCSV(d: GroupDetail) {
   const keys = keysBack(365), k7 = keysBack(7);
-  const rows: (string | number)[][] = [['Tên', 'Ngày tham gia', 'Tổng phút tập trung', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Tỷ lệ hoàn thành', 'Lần rời trang', 'Không phản hồi', 'Trả lời đúng', 'Điểm tập trung TB', 'Điểm kỷ luật 7 ngày', 'Hoạt động gần nhất']];
+  const rows: (string | number)[][] = [['Tên', 'Ngày tham gia', 'Vàng', 'Gỗ', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Phiên thành công (tổng)', 'Phiên thất bại (tổng)', 'Tổng phút tập trung', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Tỷ lệ hoàn thành', 'Lần rời trang', 'Không phản hồi', 'Trả lời đúng', 'Điểm tập trung TB', 'Điểm kỷ luật 7 ngày', 'Hoạt động gần nhất']];
   for (const p of d.players) {
     const a = metrics(sumDays(p.days, keys), 365, p.createdAt), w = metrics(sumDays(p.days, k7), 7, p.createdAt);
-    rows.push([p.name, dkey(p.createdAt), p.totalFocusMin, a.s, a.c, a.q, a.comp == null ? '' : Math.round(a.comp * 100) + '%', a.dn, a.ms, a.quiz == null ? '' : Math.round(a.quiz * 100) + '%', a.focus ?? '', w.disc ?? '', p.lastAt ? dkey(p.lastAt) : '']);
+    rows.push([p.name, dkey(p.createdAt), p.gold, p.wood, p.currentStreak, p.bestStreak, p.tasksDone, p.tasksFailed, p.totalFocusMin, a.s, a.c, a.q, a.comp == null ? '' : Math.round(a.comp * 100) + '%', a.dn, a.ms, a.quiz == null ? '' : Math.round(a.quiz * 100) + '%', a.focus ?? '', w.disc ?? '', p.lastAt ? dkey(p.lastAt) : '']);
   }
   const csv = '﻿' + rows.map((r) => r.map((c) => { const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a');
@@ -68,7 +68,7 @@ export function Admin({ gid, detail }: { gid: string; detail: GroupDetail }) {
         <p className="text-[13px] text-muted">Bấm vào một dòng để xem các phiên gần đây và ghi chú của thành viên.</p>
         <div className={t.wrap}>
           <table className={t.table}>
-            <thead><tr>{['Thành viên', 'Phút', 'Phiên', 'Hoàn thành', 'Bỏ cuộc', 'Xao nhãng', 'Tập trung', 'Kỷ luật', 'Xu hướng', 'Lần cuối'].map((h) => <th key={h} className={t.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['Thành viên', 'Chuỗi', 'TC/TB', 'Phút', 'Phiên', 'Hoàn thành', 'Bỏ cuộc', 'Xao nhãng', 'Tập trung', 'Kỷ luật', 'Xu hướng', 'Lần cuối'].map((h) => <th key={h} className={t.th}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map(({ p, m, pm }) => {
                 const tr = delta(m.disc, pm.disc);
@@ -76,6 +76,7 @@ export function Admin({ gid, detail }: { gid: string; detail: GroupDetail }) {
                 return (
                   <tr key={p.id} className="cursor-pointer hover:[&>td]:bg-surface2" onClick={() => setSel(p.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setSel(p.id)}>
                     <td className={t.td}>{p.name}{risk && <> <Pill tone="warn">Cần chú ý</Pill></>}</td>
+                    <td className={t.td}>{p.currentStreak}</td><td className={t.td}>{p.tasksDone}/{p.tasksFailed}</td>
                     <td className={t.td}>{Math.round(m.cs / 60)}</td><td className={t.td}>{m.s}</td><td className={t.td}>{pct(m.comp)}</td><td className={t.td}>{m.q}</td>
                     <td className={t.td}>{m.dn + m.ms}</td><td className={t.td}>{num(m.focus)}</td><td className={t.td}>{num(m.disc)}</td>
                     <td className={t.td}>{tr == null ? '–' : tr >= 3 ? '▲ +' + Math.round(tr) : tr <= -3 ? '▼ ' + Math.round(tr) : '–'}</td>

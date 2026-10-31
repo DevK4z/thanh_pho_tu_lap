@@ -86,7 +86,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: { code: 'not_found', message: 'Không tìm thấy.' } }));
 
   const ctx: Ctx = { db, env, verifiers, requireUser };
-  app.get('/health', async () => ({ ok: true }));
+  // commit: mã git đang chạy (Render tự đặt RENDER_GIT_COMMIT), để kiểm tra đã deploy đúng bản.
+  app.get('/health', async () => ({ ok: true, commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null }));
   await app.register(async (api) => {
     authRoutes(api, ctx);
     groupRoutes(api, ctx);

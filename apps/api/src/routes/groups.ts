@@ -24,6 +24,7 @@ export function toPlayer(p: PlayerRow, days: Days): Player {
   return {
     id: p.id, userId: p.userId, name: p.name, style: p.style, dailyGoal: p.dailyGoal, totalFocusMin: p.totalFocusMin,
     plot: p.plot, pending: p.pending, quitReasons: p.quitReasons, days,
+    gold: p.gold, wood: p.wood, currentStreak: p.currentStreak, bestStreak: p.bestStreak, tasksDone: p.tasksDone, tasksFailed: p.tasksFailed,
     createdAt: p.createdAt.getTime(), lastAt: p.lastAt ? p.lastAt.getTime() : null,
   };
 }

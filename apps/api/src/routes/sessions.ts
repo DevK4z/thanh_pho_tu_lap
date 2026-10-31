@@ -1,12 +1,12 @@
-/* Phiên tập trung. Máy chủ giữ giờ bắt đầu, câu hỏi và đáp án; tự chấm điểm và cấp phần thưởng.
+/* Phiên tập trung. Máy chủ giữ giờ bắt đầu, câu hỏi và đáp án; tự chấm điểm, tính chuỗi và cấp phần thưởng.
    Trình duyệt chỉ báo những gì nó đo được: thời gian rời trang, số lần rời trang, câu trả lời và tự đánh giá. */
 import { eq, sql } from 'drizzle-orm';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  ACTS, ACT_KEYS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, DAY_RE,
-  checkCount, levelOf, scoreSession, tierFor, verifyCount, wordCount,
-  type ActKey, type DayStat, type SessionResult,
+  ACTS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, SESSION_ACTS, DAY_RE,
+  checkCount, levelOf, rewardFor, scoreSession, tierFor, verifyCount, wordCount,
+  type ActKey, type DayStat, type QuitResult, type SessionResult, type TaskStats,
 } from '@tptl/shared';
 import type { Ctx, User } from '../app';
 import type { Db } from '../db/client';
@@ -43,6 +43,23 @@ function answeredStats(q: SessionQuestions) {
   return { qa: done.length, qc: done.filter((c) => c.ans === c.a).length, missed: done.filter((c) => c.ans === -1).length };
 }
 
+const statsOf = (p: Pick<PlayerRow, keyof TaskStats>): TaskStats => ({
+  tasksDone: p.tasksDone, tasksFailed: p.tasksFailed, currentStreak: p.currentStreak, bestStreak: p.bestStreak, gold: p.gold, wood: p.wood,
+});
+
+/** Báo cáo cho admin mỗi khi một phiên kết thúc: ghi vào log máy chủ (terminal khi chạy local, tab Logs trên Render). */
+function reportToAdmin(log: FastifyBaseLogger, userId: string, playerId: string, taskStatus: 'success' | 'failed', st: TaskStats, reason?: string) {
+  const total = st.tasksDone + st.tasksFailed;
+  log.info({
+    adminReport: {
+      userId, playerId, taskStatus, reason,
+      totalTasks: total, successTasks: st.tasksDone, failedTasks: st.tasksFailed,
+      completionRate: total ? Math.round((st.tasksDone / total) * 1000) / 10 : null,
+      currentStreak: st.currentStreak, gold: st.gold, wood: st.wood,
+    },
+  }, 'admin_report');
+}
+
 const measured = {
   awaySec: z.number().min(0).max(24 * 3600),
   dist: z.number().int().min(0).max(10_000),
@@ -65,7 +82,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     await requireMember(db, u, gid);
     const p = await requirePlayer(db, gid, u.id);
     const body = parse(z.object({
-      act: z.enum(ACT_KEYS as [ActKey, ...ActKey[]]),
+      act: z.enum(SESSION_ACTS as [ActKey, ...ActKey[]], { errorMap: () => ({ message: 'chỉ đăng ký được hoạt động trên máy' }) }),
       minutes: z.number().int().min(MIN_MINUTES).max(MAX_MINUTES),
       goal: z.string().max(LIMITS.goal).default('').transform((s) => s.trim()),
       day: z.string().regex(DAY_RE),
@@ -122,7 +139,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       confirmed: z.boolean().default(false),
       verify: z.array(z.number().int().min(0).max(9)).max(5),
     }), req.body);
-    return db.transaction(async (tx) => {
+    const r = await db.transaction(async (tx) => {
       const { s, p } = await lockActive(tx, u, sid);
       const now = Date.now();
       if (now < s.startedAt.getTime() + s.plannedSec * 1000 - 2000) throw new HttpError(409, 'too_early', 'Chưa hết thời gian cam kết.');
@@ -147,24 +164,37 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
         status: 'done', endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa, qc, focus, self: body.self, note: body.note, questions: q,
       }).where(eq(focusSessions.id, sid));
       await addDay(tx, p.id, s.day, { c: 1, ac: activeSec, cs: activeSec, aw: awaySec, dn: dist, ms: chk.missed, qa, qc, fs: focus, fn: 1 });
-      await tx.update(players).set({
+      // Chuỗi tăng 1; hệ số thưởng tính theo chuỗi sau khi tăng.
+      const streak = p.currentStreak + 1;
+      const reward = rewardFor(streak);
+      const [np] = await tx.update(players).set({
         totalFocusMin: p.totalFocusMin + minutes,
         pending: p.pending.concat([{ sid, t: tier, g: shiny ? 1 : 0, m: minutes, a: s.act }]),
         lastAt: new Date(now),
-      }).where(eq(players.id, p.id));
-      return {
+        gold: p.gold + reward.gold,
+        wood: p.wood + reward.wood,
+        currentStreak: streak,
+        bestStreak: Math.max(p.bestStreak, streak),
+        tasksDone: p.tasksDone + 1,
+      }).where(eq(players.id, p.id)).returning();
+      const result: SessionResult = {
         focus, minutes, tier, shiny, qc, qa, dist, away: awaySec, missed: chk.missed, mode: s.mode,
         prevLv: levelOf(p.totalFocusMin).lv, newLv: levelOf(p.totalFocusMin + minutes).lv,
+        gold: reward.gold, wood: reward.wood, mult: reward.mult, stats: statsOf(np),
       };
+      return { result, playerId: p.id };
     });
+    reportToAdmin(req.log, u.id, r.playerId, 'success', r.result.stats);
+    return r.result;
   });
 
-  app.post('/sessions/:sid/quit', async (req) => {
+  /** Bỏ cuộc hoặc thất bại (rời màn hình, đóng trang): chuỗi về 0. */
+  app.post('/sessions/:sid/quit', async (req): Promise<QuitResult> => {
     const u = await requireUser(req);
     const { sid } = parse(uuidParam('sid'), req.params);
     const body = parse(z.object({ ...measured, reason: z.enum(REASON_KEYS as [string, ...string[]]) }), req.body);
     const reason = body.reason as (typeof REASON_KEYS)[number];
-    await db.transaction(async (tx) => {
+    const r = await db.transaction(async (tx) => {
       const { s, p } = await lockActive(tx, u, sid);
       const now = Date.now();
       // Phiên bị đóng giữa chừng không biết đã làm bao lâu nên không tính thời gian thực hiện.
@@ -175,9 +205,13 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       await tx.update(focusSessions).set({ status: 'quit', reason, endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa: chk.qa, qc: chk.qc }).where(eq(focusSessions.id, sid));
       await addDay(tx, p.id, s.day, { q: 1, ac: activeSec, aw: awaySec, dn: dist, ms: chk.missed, qa: chk.qa, qc: chk.qc });
       const qr = { ...p.quitReasons, [reason]: (p.quitReasons[reason] || 0) + 1 };
-      await tx.update(players).set({ quitReasons: qr, lastAt: new Date(now) }).where(eq(players.id, p.id));
+      const [np] = await tx.update(players).set({
+        quitReasons: qr, lastAt: new Date(now), currentStreak: 0, tasksFailed: p.tasksFailed + 1,
+      }).where(eq(players.id, p.id)).returning();
+      return { playerId: p.id, out: { lostStreak: p.currentStreak, stats: statsOf(np) } };
     });
-    return { ok: true };
+    reportToAdmin(req.log, u.id, r.playerId, 'failed', r.out.stats, reason);
+    return r.out;
   });
 }
 

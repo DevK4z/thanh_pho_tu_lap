@@ -14,6 +14,10 @@ const ICONS = {
   google: '<path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1c.9-2.8 3.6-4.9 6.7-4.9z"/>',
   facebook: '<circle cx="12" cy="12" r="12" fill="#1877F2"/><path fill="#fff" d="M16.7 15.5l.5-3.5h-3.3V9.8c0-1 .5-1.9 2-1.9h1.5v-3s-1.4-.2-2.7-.2c-2.8 0-4.6 1.7-4.6 4.7V12H7v3.5h3.1V24h3.8v-8.5z"/>',
   star: '<polygon points="12,2 15,9 22,9.5 16.5,14 18.5,21.5 12,17.5 5.5,21.5 7.5,14 2,9.5 9,9"/>',
+  gold: '<circle cx="12" cy="12" r="10" fill="#f6c23e" stroke="#b9860b" stroke-width="1.5"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="#b9860b" stroke-width="1.2"/><path d="M10 9.5h3.2a1.6 1.6 0 0 1 0 3.2H10.8a1.6 1.6 0 0 0 0 3.2H14M12 8v1.5M12 16v1.5" stroke="#7a5600" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
+  wood: '<rect x="2" y="7" width="17" height="10" rx="2" fill="#b07a45" stroke="#7a4f26" stroke-width="1.2"/><ellipse cx="19" cy="12" rx="3" ry="5" fill="#e3b77e" stroke="#7a4f26" stroke-width="1.2"/><ellipse cx="19" cy="12" rx="1.3" ry="2.3" fill="none" stroke="#a8763f" stroke-width="1"/><path d="M5 10h8M7 14h7" stroke="#8a5a30" stroke-width="1.1" stroke-linecap="round"/>',
+  fire: '<path d="M12 2c1 3.5 5 5.5 5 11a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 0 2 1 3 2 3.5C11 8.5 11 5 12 2z" fill="#ff7a29"/><path d="M12 13c.8 1.3 2.2 2 2.2 4a2.2 2.2 0 0 1-4.4 0c0-1.3.6-2.2 2.2-4z" fill="#ffd04a"/>',
+  shield: '<path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z" fill="#2f8cf0"/><path d="M8 12l3 3 5-6" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
 } as const;
 export type IconName = keyof typeof ICONS;
 

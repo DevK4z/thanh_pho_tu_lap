@@ -6,9 +6,10 @@ Mini app cho CLB rèn luyện kỷ luật tự thân và khả năng tập trung
 
 - Đăng nhập bằng Google, Facebook hoặc tài khoản khách (chỉ cần nhập tên).
 - Chọn lập nhóm mới hoặc tham gia nhóm có sẵn (nút tham gia bị khóa khi chưa có nhóm nào). Người lập nhóm là trưởng nhóm, có tab Quản trị. Đổi nhóm bất kỳ lúc nào; tiến độ ở mỗi nhóm được giữ lại.
-- Đăng ký phiên tập trung (đọc sách, học trên máy, viết, vận động, chăm cây) với thời gian tối thiểu 5–180 phút; nhắc cất điện thoại.
-- Theo dõi rời trang và câu hỏi kiểm tra hiện diện ngẫu nhiên; câu hỏi xác nhận sau phiên.
-- Hoàn thành phiên nhận công trình; cam kết càng lâu công trình càng hiếm. Mỗi thành viên có thành phố riêng.
+- Đăng ký phiên tập trung trên máy (học sâu, viết) với thời gian tối thiểu 5–180 phút.
+- **Chống gian lận:** phiên chạy ở chế độ toàn màn hình. Đổi tab, thu nhỏ trình duyệt, click ra ngoài cửa sổ hoặc thoát toàn màn hình (kể cả bấm Escape) quá 3 giây là phiên thất bại và chuỗi về 0; quay lại kịp thì chỉ ghi cảnh báo. Có câu hỏi kiểm tra hiện diện ngẫu nhiên và câu hỏi xác nhận sau phiên.
+- **Phần thưởng:** mỗi phiên hoàn thành nhận 50 vàng, 50 gỗ và một công trình (cam kết càng lâu công trình càng hiếm). Chuỗi phiên thành công liên tiếp nhân thưởng: ×2 từ chuỗi 5, ×3 từ chuỗi 10, ×3,5 từ chuỗi 15.
+- Mỗi thành viên có thành phố riêng; theo dõi vàng, gỗ, chuỗi hiện tại, chuỗi dài nhất, số phiên thành công/thất bại.
 - Bảng cá nhân, bảng cả nhóm (đánh giá hiệu quả chương trình), quản trị nhóm (từng thành viên, nhật ký, ngân hàng câu hỏi, xuất CSV).
 
 ## Kiến trúc
@@ -25,7 +26,9 @@ legacy/          Bản cũ một file HTML (tham khảo, có thể xóa)
 - giữ giờ bắt đầu phiên và từ chối hoàn thành trước khi hết thời gian cam kết;
 - phát câu hỏi đã xáo phương án và **không bao giờ gửi đáp án** xuống trình duyệt, tự chấm đúng/sai;
 - tự tính điểm tập trung, phần thưởng, hạng công trình; kiểm tra công trình được đặt có đúng hạng phần thưởng;
-- mỗi người chỉ có một phiên đang chạy (ràng buộc trong database).
+- tự tính chuỗi, hệ số nhân, vàng và gỗ; phiên thất bại đưa chuỗi về 0;
+- mỗi người chỉ có một phiên đang chạy (ràng buộc trong database);
+- mỗi khi phiên kết thúc, ghi một dòng `admin_report` vào log máy chủ (tỷ lệ hoàn thành, số lần thất bại, chuỗi, tài nguyên). Phía trình duyệt, `sendDataToAdmin` trong [apps/web/src/lib/adminReport.ts](apps/web/src/lib/adminReport.ts) in cùng bản tổng hợp ra console.
 
 ### Cấu trúc mã
 
@@ -44,7 +47,8 @@ apps/web/src
   App.tsx             đăng nhập → chọn nhóm → vào nhóm
   screens/            Login, GroupPicker, GroupApp (tab và luồng phiên), Town, FocusSetup, FocusRun,
                       FocusVerify, Reward, Mine, GroupBoard, Admin
-  focus/useFocusRun   đếm ngược, rời trang, câu kiểm tra hiện diện, giữ màn hình sáng
+  focus/useAntiCheat  toàn màn hình; giám sát visibilitychange, blur/focus, fullscreenchange; ân hạn 3 giây
+  focus/useFocusRun   đếm ngược, câu kiểm tra hiện diện, giữ màn hình sáng
   game/iso.ts         vẽ thành phố đẳng cự thành SVG (sprite nhúng trong index.html)
   components/         ui.tsx (nút, thẻ, chip, modal, thông báo…), Charts, Svg, Who, Layout
   lib/                api.ts (fetch + token), queries.ts (hook dữ liệu), social.ts (SDK Google/Facebook)
@@ -93,8 +97,8 @@ Tất cả dưới `/api`, dữ liệu JSON, xác thực bằng header `Authoriz
 | POST | `/groups/:gid/players` `{ name, style, dailyGoal }` | Tạo nhà trong nhóm |
 | POST | `/groups/:gid/sessions` `{ act, minutes, goal, day }` | Bắt đầu phiên, nhận câu hỏi (không kèm đáp án) |
 | POST | `/sessions/:sid/checks` `{ index, choice }` | Trả lời câu kiểm tra hiện diện (`-1` là bỏ lỡ) |
-| POST | `/sessions/:sid/complete` `{ awaySec, dist, self, note, confirmed, verify }` | Hoàn thành phiên, máy chủ chấm điểm |
-| POST | `/sessions/:sid/quit` `{ reason, awaySec, dist }` | Bỏ cuộc |
+| POST | `/sessions/:sid/complete` `{ awaySec, dist, self, note, confirmed, verify }` | Hoàn thành phiên: máy chủ chấm điểm, tăng chuỗi, cộng vàng và gỗ |
+| POST | `/sessions/:sid/quit` `{ reason, awaySec, dist }` | Thất bại (bỏ cuộc, `violation` khi rời màn hình): chuỗi về 0 |
 | POST | `/groups/:gid/plot` `{ item, slot }` | Đặt phần thưởng lên bản đồ |
 | GET | `/groups/:gid/players/:pid/sessions` | Nhật ký phiên (chủ nhân hoặc trưởng nhóm) |
 | GET / POST / DELETE | `/groups/:gid/questions[/:qid]` | Ngân hàng câu hỏi của nhóm (trưởng nhóm) |
@@ -132,5 +136,7 @@ Giao diện là trang tĩnh (GitHub Pages); API cần một máy chủ Node.js v
 ## Lưu ý
 
 - Tài khoản khách gắn với trình duyệt (token trong localStorage). Đăng xuất hoặc xóa dữ liệu trình duyệt sẽ mất tài khoản; app hỏi xác nhận trước khi đăng xuất khách.
-- Thời gian rời trang do trình duyệt đo nên người rành kỹ thuật vẫn có thể sửa; thời gian phiên, câu hỏi, đáp án và điểm thì do máy chủ quyết định.
+- Việc rời màn hình do trình duyệt phát hiện nên người rành kỹ thuật vẫn có thể chặn báo cáo này; thời gian phiên, câu hỏi, đáp án, điểm, chuỗi và phần thưởng thì do máy chủ quyết định.
+- iPhone và iPad (Safari) không hỗ trợ Fullscreen API cho trang web, nên không bắt đầu phiên được trên các máy này; dùng máy tính hoặc Android.
+- Phím Escape khi đang toàn màn hình do trình duyệt xử lý và không tới được trang, nên được phát hiện qua sự kiện `fullscreenchange`.
 - Không đo chuyển động mắt/đầu; độ tập trung ước tính qua rời trang, câu hỏi kiểm tra và tự đánh giá.
