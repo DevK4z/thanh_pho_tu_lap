@@ -118,7 +118,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   } else if (current === 'mine' && player) {
     body = <Mine gid={gid} player={player} onTab={go} />;
   } else if (current === 'admin' && d.canManage) {
-    body = <Admin gid={gid} detail={d} />;
+    body = <Admin gid={gid} detail={d} isAppAdmin={me.isAdmin} onOpenReward={() => setFlow({ step: 'reward', result: null })} />;
   } else {
     body = <GroupBoard detail={d} />;
   }

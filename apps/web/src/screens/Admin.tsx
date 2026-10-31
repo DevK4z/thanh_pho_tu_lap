@@ -5,6 +5,7 @@ import { Button, Card, Eyebrow, Field, inputCls, Pill, tableCls as t, useToast }
 import { api, errorMessage } from '../lib/api';
 import { dmy, num, pct } from '../lib/format';
 import { qk, useLogs, useQuestions } from '../lib/queries';
+import { GrantTool } from './GrantTool';
 import { LogTable } from './LogTable';
 
 function exportCSV(d: GroupDetail) {
@@ -23,7 +24,7 @@ function exportCSV(d: GroupDetail) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
 }
 
-export function Admin({ gid, detail }: { gid: string; detail: GroupDetail }) {
+export function Admin({ gid, detail, isAppAdmin, onOpenReward }: { gid: string; detail: GroupDetail; isAppAdmin: boolean; onOpenReward: () => void }) {
   const toast = useToast();
   const qc = useQueryClient();
   const [sel, setSel] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export function Admin({ gid, detail }: { gid: string; detail: GroupDetail }) {
         <div><Eyebrow>{detail.isOwner ? 'Dành cho trưởng nhóm' : 'Quản trị viên ứng dụng · trưởng nhóm: ' + detail.group.ownerName}</Eyebrow><h2>Quản trị nhóm {detail.group.name}</h2></div>
         <Button onClick={() => { exportCSV(detail); toast('Đã tải file CSV.'); }}>Xuất CSV</Button>
       </div>
+      {isAppAdmin && <GrantTool gid={gid} detail={detail} onOpenReward={onOpenReward} />}
       <Card>
         <h3>Từng thành viên (7 ngày)</h3>
         <p className="text-[13px] text-muted">Bấm vào một dòng để xem các phiên gần đây và ghi chú của thành viên.</p>

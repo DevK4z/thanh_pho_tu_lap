@@ -306,6 +306,19 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect((await call('GET', `/groups/${gid}/players/${bPid}/sessions`, other.token)).status).toBe(403);
     expect((await call('GET', '/groups/' + gid, A.token)).body).toMatchObject({ isOwner: true, canManage: true });
     expect((await call('GET', '/groups/' + gid, B.token)).body).toMatchObject({ isOwner: false, canManage: false });
+    // Công cụ cấp phát: chỉ quản trị viên ứng dụng; trưởng nhóm thường không tự cấp được.
+    const grant = (token: string, pid: string, body: object) => call('POST', `/groups/${gid}/players/${pid}/grant`, token, body);
+    expect((await grant(A.token, aPid, { gold: 100 })).body.error.code).toBe('admin_only');
+    expect((await grant(boss.token, aPid, {})).status).toBe(400);
+    expect((await grant(boss.token, aPid, { rewards: { tier: 5, count: 1 } })).status).toBe(400);
+    const before = ((await call('GET', '/groups/' + gid, A.token)).body as GroupDetail).players.find((x) => x.id === aPid)!;
+    const g1 = await grant(boss.token, aPid, { gold: 1000, wood: 500, rewards: { tier: 4, count: 2, shiny: true } });
+    expect(g1.body).toEqual({ name: 'An', gold: before.gold + 1000, wood: before.wood + 500, pending: before.pending.length + 2 });
+    // Trừ quá số đang có thì về 0.
+    expect((await grant(boss.token, aPid, { gold: -999_999 })).body.gold).toBe(0);
+    // Phần thưởng được cấp dùng như phần thưởng thật: đặt được công trình hạng Hiếm, có mạ vàng.
+    const placed = await call('POST', `/groups/${gid}/plot`, A.token, { item: 'thap', slot: 20 });
+    expect(placed.body.plot).toContainEqual({ s: 20, i: 'thap', t: 4, g: 1 });
   });
 
   it('ngày trên máy lệch quá xa bị từ chối', async () => {

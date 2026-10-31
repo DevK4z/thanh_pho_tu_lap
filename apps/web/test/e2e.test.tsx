@@ -161,6 +161,11 @@ describe('giao diện + API', () => {
     await waitFor(() => expect(res().getByText('1 / 1 (50%)')).toBeTruthy());
     logSpy.mockRestore();
 
+    // Trưởng nhóm thường có tab Quản trị nhưng không có công cụ cấp phát.
+    fireEvent.click(tab('Quản trị'));
+    await find('Quản trị nhóm Lớp 10A1');
+    expect(screen.queryByText(/Công cụ thử nghiệm/)).toBeNull();
+
     fireEvent.click(tab('Của tôi'));
     await find('Tiến bộ của tôi');
     await find('Hoàn thành');
@@ -228,5 +233,29 @@ describe('giao diện + API', () => {
     fireEvent.click(screen.getByText('An', { selector: 'td' }));
     await find('Các phiên gần đây của An');
     await find('Rời màn hình quá 3 giây');
+
+    // Công cụ cấp phát: cấp cho An.
+    await find('Công cụ thử nghiệm: cấp vàng, gỗ và công trình');
+    const who = screen.getByLabelText('Người nhận') as HTMLSelectElement;
+    fireEvent.change(who, { target: { value: [...who.options].find((o) => o.text === 'An')!.value } });
+    fireEvent.click(screen.getAllByRole('button', { name: '+1.000' })[0]);
+    fireEvent.click(btn('Cấp cho An'));
+    await find(/Đã cấp cho An: hiện có 1\.050 vàng, 50 gỗ, 3 phần thưởng đang chờ/);
+
+    // Tự tạo nhà, cấp cho chính mình 1 phần thưởng hạng Hiếm rồi đặt Tháp quan sát từ kho.
+    fireEvent.click(tab('Thành phố'));
+    await find('Chọn khu đất đầu tiên');
+    fireEvent.click(btn('Bắt đầu xây thành phố'));
+    await find('Thành phố của Quản trị');
+    fireEvent.click(tab('Quản trị'));
+    await find('Cấp cho Quản trị');
+    fireEvent.change(screen.getByLabelText('Số phần thưởng (1–20)'), { target: { value: '1' } });
+    fireEvent.click(btn('Cấp cho Quản trị'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mở kho công trình (1)' }, { timeout: 5000 }));
+    await find('Chọn một công trình');
+    fireEvent.click(btn(/Tháp quan sát/));
+    fireEvent.click(document.querySelector('[data-slot="5"]')!);
+    await find('Đã xây Tháp quan sát trong thành phố.');
+    await find('Thành phố của Quản trị');
   }, 30_000);
 });
