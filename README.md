@@ -11,7 +11,7 @@ Mini app cho CLB rèn luyện kỷ luật tự thân và khả năng tập trung
 - **Phần thưởng:** mỗi phiên hoàn thành nhận 50 vàng, 50 gỗ và một công trình (cam kết càng lâu công trình càng hiếm). Chuỗi phiên thành công liên tiếp nhân thưởng: ×2 từ chuỗi 5, ×3 từ chuỗi 10, ×3,5 từ chuỗi 15.
 - Mỗi thành viên có thành phố riêng; theo dõi vàng, gỗ, chuỗi hiện tại, chuỗi dài nhất, số phiên thành công/thất bại.
 - Bảng cá nhân, bảng cả nhóm (đánh giá hiệu quả chương trình), quản trị nhóm (từng thành viên, nhật ký, ngân hàng câu hỏi, xuất CSV).
-- **Báo cáo cho quản trị viên ứng dụng** (trang `#bao-cao`): tỷ lệ hoàn thành, tỷ lệ bỏ cuộc và tỷ lệ thời gian hoàn thành trên thời gian đăng ký của từng người ở mọi nhóm; lọc theo 7/30/90 ngày, theo nhóm, xuất CSV. Quản trị viên là người đăng nhập Google/Facebook bằng email nằm trong biến `ADMIN_EMAILS` của API.
+- **Báo cáo cho quản trị viên ứng dụng** (trang `#bao-cao`): tỷ lệ hoàn thành, tỷ lệ bỏ cuộc và tỷ lệ thời gian hoàn thành trên thời gian đăng ký của từng người ở mọi nhóm; lọc theo 7/30/90 ngày, theo nhóm, xuất CSV. Quản trị viên là người đăng nhập Google/Facebook bằng email nằm trong biến `ADMIN_EMAILS` của API. Quản trị viên có quyền trưởng nhóm ở mọi nhóm, và có thêm **công cụ thử nghiệm** trong tab Quản trị để cấp vàng, gỗ và phần thưởng công trình (chọn hạng, số lượng, mạ vàng) cho bất kỳ thành viên nào.
 
 ## Kiến trúc
 
@@ -104,6 +104,7 @@ Tất cả dưới `/api`, dữ liệu JSON, xác thực bằng header `Authoriz
 | GET | `/groups/:gid/players/:pid/sessions` | Nhật ký phiên (chủ nhân hoặc trưởng nhóm) |
 | GET / POST / DELETE | `/groups/:gid/questions[/:qid]` | Ngân hàng câu hỏi của nhóm (trưởng nhóm) |
 | GET | `/admin/report[?days=30]` | Báo cáo tỷ lệ hoàn thành và bỏ cuộc của từng người ở mọi nhóm (quản trị viên ứng dụng) |
+| POST | `/groups/:gid/players/:pid/grant` `{ gold, wood, rewards: { tier, count, shiny } }` | Công cụ thử nghiệm: cộng/trừ vàng, gỗ, cấp phần thưởng công trình (quản trị viên ứng dụng) |
 
 ## Triển khai
 

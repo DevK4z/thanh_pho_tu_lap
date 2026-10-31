@@ -131,6 +131,9 @@ export interface SessionResult {
 export interface TaskStats { tasksDone: number; tasksFailed: number; currentStreak: number; bestStreak: number; gold: number; wood: number }
 export interface QuitResult { lostStreak: number; stats: TaskStats }
 
+/** Kết quả sau khi quản trị viên cấp vàng, gỗ, công trình. */
+export interface GrantResult { name: string; gold: number; wood: number; pending: number }
+
 export interface GroupQuestion { id: string; act: ActKey | 'all'; q: string; o: string[]; a: number }
 
 export interface PublicConfig { google: string | null; facebook: string | null }
