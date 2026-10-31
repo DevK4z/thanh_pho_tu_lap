@@ -60,7 +60,7 @@ export function Admin({ gid, detail }: { gid: string; detail: GroupDetail }) {
   return (
     <section className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <div><Eyebrow>Dành cho trưởng nhóm</Eyebrow><h2>Quản trị nhóm</h2></div>
+        <div><Eyebrow>{detail.isOwner ? 'Dành cho trưởng nhóm' : 'Quản trị viên ứng dụng · trưởng nhóm: ' + detail.group.ownerName}</Eyebrow><h2>Quản trị nhóm {detail.group.name}</h2></div>
         <Button onClick={() => { exportCSV(detail); toast('Đã tải file CSV.'); }}>Xuất CSV</Button>
       </div>
       <Card>

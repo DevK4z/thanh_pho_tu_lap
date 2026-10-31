@@ -29,9 +29,9 @@ export function toPlayer(p: PlayerRow, days: Days): Player {
   };
 }
 
-/** Người dùng phải đang ở trong nhóm (users.current_group_id). */
-export async function requireMember(db: Db, u: User, gid: string): Promise<GroupRow> {
-  if (u.currentGroupId !== gid) throw new HttpError(403, 'not_member', 'Bạn không ở trong nhóm này.');
+/** Người dùng phải đang ở trong nhóm (users.current_group_id). asAdmin: quản trị viên ứng dụng xem và quản lý mọi nhóm. */
+export async function requireMember(db: Db, u: User, gid: string, asAdmin = false): Promise<GroupRow> {
+  if (u.currentGroupId !== gid && !asAdmin) throw new HttpError(403, 'not_member', 'Bạn không ở trong nhóm này.');
   const [g] = await db.select().from(groups).where(eq(groups.id, gid)).limit(1);
   if (!g) throw new HttpError(404, 'group_not_found', 'Nhóm không còn tồn tại.');
   return g;
@@ -60,7 +60,7 @@ async function loadDays(db: Db, ids: string[]): Promise<Map<string, Days>> {
   return out;
 }
 
-export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe }: Ctx) {
+export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdmin }: Ctx) {
   app.get('/groups', async (req): Promise<GroupSummary[]> => {
     await requireUser(req);
     const members = db.select({ groupId: players.groupId, n: count().as('n') }).from(players).groupBy(players.groupId).as('members');
@@ -115,7 +115,7 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe }: Ctx
   app.get('/groups/:gid', async (req): Promise<GroupDetail> => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
-    const g = await requireMember(db, u, gid);
+    const g = await requireMember(db, u, gid, isAdmin(u));
     const [owner] = await db.select({ name: users.name }).from(users).where(eq(users.id, g.ownerId)).limit(1);
     const rows = await db.select().from(players).where(eq(players.groupId, gid)).orderBy(desc(players.totalFocusMin));
     const days = await loadDays(db, rows.map((r) => r.id));
@@ -128,6 +128,7 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe }: Ctx
     return {
       group: { id: g.id, name: g.name, ownerId: g.ownerId, ownerName: owner?.name ?? '', createdAt: g.createdAt.getTime() },
       isOwner: g.ownerId === u.id,
+      canManage: g.ownerId === u.id || isAdmin(u),
       players: rows.map((r) => toPlayer(r, days.get(r.id)!)),
       meId: mine?.id ?? null,
       active,
@@ -177,14 +178,15 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe }: Ctx
     return toPlayer(p, days.get(p.id)!);
   });
 
-  /** Nhật ký phiên: chủ nhân hoặc trưởng nhóm mới xem được. */
+  /** Nhật ký phiên: chủ nhân, trưởng nhóm hoặc quản trị viên ứng dụng mới xem được. */
   app.get('/groups/:gid/players/:pid/sessions', async (req): Promise<SessionLog[]> => {
     const u = await requireUser(req);
     const { gid, pid } = parse(uuidParam('gid', 'pid'), req.params);
-    const g = await requireMember(db, u, gid);
+    const admin = isAdmin(u);
+    const g = await requireMember(db, u, gid, admin);
     const [p] = await db.select().from(players).where(and(eq(players.id, pid), eq(players.groupId, gid))).limit(1);
     if (!p) throw new HttpError(404, 'player_not_found', 'Không tìm thấy thành viên.');
-    if (p.userId !== u.id && g.ownerId !== u.id) throw new HttpError(403, 'forbidden', 'Chỉ trưởng nhóm xem được nhật ký của người khác.');
+    if (p.userId !== u.id && g.ownerId !== u.id && !admin) throw new HttpError(403, 'forbidden', 'Chỉ trưởng nhóm xem được nhật ký của người khác.');
     const rows = await db.select().from(focusSessions)
       .where(and(eq(focusSessions.playerId, pid), ne(focusSessions.status, 'active')))
       .orderBy(desc(focusSessions.startedAt)).limit(20);

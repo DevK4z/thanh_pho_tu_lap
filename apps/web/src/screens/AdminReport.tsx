@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dkey, type AdminReport as Report, type AdminReportRow } from '@tptl/shared';
 import { BigNumber, Button, Card, Chip, Eyebrow, Grid, inputCls, Muted, Pill, tableCls as t, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
+import { useGroupMembership } from '../lib/queries';
 import { dmy, pct } from '../lib/format';
 
 const PERIODS: [number | null, string][] = [[7, '7 ngày'], [30, '30 ngày'], [90, '90 ngày'], [null, 'Từ đầu']];
@@ -37,6 +38,10 @@ function RateCell({ v, kind }: { v: number | null; kind: 'good-high' | 'good-low
 
 export function AdminReport({ onBack }: { onBack: () => void }) {
   const toast = useToast();
+  const { join } = useGroupMembership();
+  /** Vào nhóm để dùng tab Quản trị của nhóm đó (xem nhật ký từng phiên, câu hỏi, CSV của nhóm). */
+  const openGroup = (id: string, name: string) =>
+    join.mutate(id, { onSuccess: () => { toast(`Đã mở nhóm “${name}”.`); onBack(); }, onError: (e) => toast(errorMessage(e)) });
   const [days, setDays] = useState<number | null>(30);
   const [group, setGroup] = useState('');
   const [q, setQ] = useState('');
@@ -92,7 +97,8 @@ export function AdminReport({ onBack }: { onBack: () => void }) {
               </label>
             </div>
             <p className="text-[13px] text-muted">
-              Tỷ lệ hoàn thành = phiên hoàn thành ÷ phiên đã đăng ký và đã kết thúc; tỷ lệ bỏ cuộc = phiên thất bại (tự dừng, rời màn hình, đóng trang) ÷ cùng mẫu số. Phiên đang chạy chưa tính.
+              Bấm tên nhóm để mở nhóm đó với quyền quản trị (xem nhật ký và ghi chú từng phiên, sửa ngân hàng câu hỏi, xuất CSV của nhóm).
+              {' '}Tỷ lệ hoàn thành = phiên hoàn thành ÷ phiên đã đăng ký và đã kết thúc; tỷ lệ bỏ cuộc = phiên thất bại (tự dừng, rời màn hình, đóng trang) ÷ cùng mẫu số. Phiên đang chạy chưa tính.
               Tỷ lệ thời gian = số phút của các phiên hoàn thành ÷ số phút đã đăng ký. {r.days ? `Tính các phiên bắt đầu trong ${r.days} ngày gần nhất.` : 'Tính từ đầu đến nay.'}
             </p>
             <div className={t.wrap}>
@@ -102,7 +108,7 @@ export function AdminReport({ onBack }: { onBack: () => void }) {
                   {rows.map((x) => (
                     <tr key={x.playerId}>
                       <td className={t.td}><b>{x.name}</b> <Pill>{PROVIDER[x.provider]}</Pill>{x.email && <div className="text-xs text-muted">{x.email}</div>}</td>
-                      <td className={t.td}>{x.groupName}</td>
+                      <td className={t.td}><button type="button" className="font-semibold text-pine underline underline-offset-2" disabled={join.isPending} onClick={() => openGroup(x.groupId, x.groupName)} title="Mở nhóm này để quản trị">{x.groupName}</button></td>
                       <td className={t.td}>{x.registered}{x.active ? <span className="text-muted"> ({x.active} đang chạy)</span> : ''}</td>
                       <td className={t.td}>{x.done}</td>
                       <td className={t.td}>{x.failed}</td>

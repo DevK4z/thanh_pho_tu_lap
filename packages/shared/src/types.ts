@@ -81,6 +81,8 @@ export interface ActiveSession {
 export interface GroupDetail {
   group: GroupInfo;
   isOwner: boolean;
+  /** Có quyền quản trị nhóm: là trưởng nhóm, hoặc là quản trị viên ứng dụng. */
+  canManage: boolean;
   players: Player[];
   /** id người chơi của tài khoản hiện tại trong nhóm, null nếu chưa tạo nhà. */
   meId: string | null;
@@ -139,6 +141,7 @@ export interface ApiErrorBody { error: { code: string; message: string } }
 export interface AdminReportRow {
   playerId: string;
   name: string;
+  groupId: string;
   groupName: string;
   provider: Provider;
   email: string | null;

@@ -218,7 +218,15 @@ describe('giao diện + API', () => {
     expect(within(rowOf('Bình')).getAllByText('–').length).toBeGreaterThan(0);
     fireEvent.click(btn('Từ đầu'));
     await find(/Tính từ đầu đến nay./);
-    fireEvent.click(btn('← Về ứng dụng'));
-    await find('Chọn nhóm');
+    // Bấm tên nhóm: vào nhóm với quyền quản trị.
+    fireEvent.click(within(rowOf('An')).getByRole('button', { name: 'Lớp 10A1' }));
+    await find('Chọn khu đất đầu tiên');
+    expect(screen.getByText(/Nhóm Lớp 10A1 · quản trị viên/)).toBeTruthy();
+    fireEvent.click(tab('Quản trị'));
+    await find('Quản trị nhóm Lớp 10A1');
+    await find('Quản trị viên ứng dụng · trưởng nhóm: An');
+    fireEvent.click(screen.getByText('An', { selector: 'td' }));
+    await find('Các phiên gần đây của An');
+    await find('Rời màn hình quá 3 giây');
   }, 30_000);
 });
