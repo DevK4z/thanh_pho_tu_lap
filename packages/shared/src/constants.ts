@@ -23,9 +23,6 @@ export const ACTS: Record<ActKey, Activity> = {
   plant: { n: 'Chăm cây', mode: 'offline', d: 'Trồng, tưới, tỉa cây. Cất điện thoại và quay lại khi hết giờ.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
 };
 export const ACT_KEYS: ActKey[] = ['read', 'deep', 'write', 'move', 'plant'];
-/** Hoạt động được đăng ký phiên mới: chỉ phiên trên máy (giám sát toàn màn hình). Các hoạt động ngoài màn hình
-    vẫn giữ trong ACTS để hiển thị lịch sử cũ. */
-export const SESSION_ACTS: ActKey[] = ACT_KEYS.filter((k) => ACTS[k].mode === 'screen');
 
 export const DURS = [5, 10, 15, 25, 45, 60, 90];
 export const MIN_MINUTES = 5;

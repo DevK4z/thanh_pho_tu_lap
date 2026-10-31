@@ -109,7 +109,7 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
         </div>
       ) : (
         <Banner className="text-left">
-          <b>Hãy cất điện thoại.</b> Quay lại sau <b>{hm(s.startedAt + s.plannedSec * 1000)}</b> để trả lời câu hỏi xác nhận và nhận công trình.
+          <b>Hãy cất điện thoại.</b> Bạn có thể thoát khỏi ứng dụng. Quay lại sau <b>{hm(s.startedAt + s.plannedSec * 1000)}</b> để trả lời câu hỏi xác nhận, nhận vàng, gỗ và công trình.
         </Banner>
       )}
       <div><Button variant="ghost" onClick={() => setQuitAsk(true)} disabled={busy}>Dừng phiên (tính là thất bại)</Button></div>

@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  ACTS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, SESSION_ACTS, DAY_RE,
+  ACTS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, ACT_KEYS, DAY_RE,
   checkCount, levelOf, rewardFor, scoreSession, tierFor, verifyCount, wordCount,
   type ActKey, type DayStat, type QuitResult, type SessionResult, type TaskStats,
 } from '@tptl/shared';
@@ -82,7 +82,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     await requireMember(db, u, gid);
     const p = await requirePlayer(db, gid, u.id);
     const body = parse(z.object({
-      act: z.enum(SESSION_ACTS as [ActKey, ...ActKey[]], { errorMap: () => ({ message: 'chỉ đăng ký được hoạt động trên máy' }) }),
+      act: z.enum(ACT_KEYS as [ActKey, ...ActKey[]]),
       minutes: z.number().int().min(MIN_MINUTES).max(MAX_MINUTES),
       goal: z.string().max(LIMITS.goal).default('').transform((s) => s.trim()),
       day: z.string().regex(DAY_RE),
