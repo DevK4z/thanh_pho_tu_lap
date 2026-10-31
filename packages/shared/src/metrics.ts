@@ -1,5 +1,5 @@
 /* Công thức tính điểm. Hàm thuần, dùng chung cho API (tính điểm phiên) và giao diện (bảng số liệu). */
-import { LV, POP, TIERS, type Level, type Mode } from './constants';
+import { BASE_REWARD, LV, POP, STREAK_TIERS, TIERS, type Level, type Mode } from './constants';
 import type { DayStat, Days, PlotItem } from './types';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -122,4 +122,18 @@ export function popOf(plot: PlotItem[] | undefined): number {
 }
 export function wordCount(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Hệ số nhân thưởng theo chuỗi phiên thành công liên tiếp (tính cả phiên vừa xong). */
+export function streakMultiplier(streak: number): number {
+  return STREAK_TIERS.find((t) => streak >= t.at)?.mult ?? 1;
+}
+/** Vàng và gỗ nhận được khi hoàn thành phiên đưa chuỗi lên `streak`. */
+export function rewardFor(streak: number): { gold: number; wood: number; mult: number } {
+  const mult = streakMultiplier(streak);
+  return { gold: Math.round(BASE_REWARD.gold * mult), wood: Math.round(BASE_REWARD.wood * mult), mult };
+}
+/** Mốc chuỗi kế tiếp có hệ số cao hơn, null nếu đã ở mốc cao nhất. */
+export function nextStreakTier(streak: number): { at: number; mult: number } | null {
+  return [...STREAK_TIERS].reverse().find((t) => t.at > streak) ?? null;
 }

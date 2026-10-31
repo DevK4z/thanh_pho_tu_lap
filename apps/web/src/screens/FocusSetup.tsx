@@ -1,43 +1,90 @@
 import { useState } from 'react';
-import { ACTS, ACT_KEYS, DURS, LIMITS, MAX_MINUTES, MIN_MINUTES, TIERS, dkey, tierFor, type ActKey, type ActiveSession } from '@tptl/shared';
-import { Button, Card, Check, Chip, Eyebrow, Field, Grid, inputCls, Option, useToast } from '../components/ui';
+import {
+  ACTS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, SESSION_ACTS, TIERS,
+  dkey, nextStreakTier, rewardFor, tierFor, type ActKey, type ActiveSession, type Player,
+} from '@tptl/shared';
+import { Icon } from '../components/Icons';
+import { Banner, Button, Card, Check, Chip, Eyebrow, Field, Grid, inputCls, Option, useToast } from '../components/ui';
+import { enterFullscreen, exitFullscreen, fullscreenSupported } from '../focus/useAntiCheat';
 import { api, errorMessage } from '../lib/api';
 
-const PREP = {
-  screen: ['Điện thoại đã cất xa tầm tay và tắt âm', 'Đã đóng các tab và ứng dụng không cần cho phiên này', 'Tôi hiểu rằng rời trang hoặc dừng giữa chừng sẽ được ghi nhận'],
-  offline: ['Tôi sẽ chuyển điện thoại sang Không làm phiền và cất đi ngay sau khi bấm bắt đầu', 'Đã chuẩn bị đủ vật dụng cho hoạt động', 'Tôi hiểu rằng quay lại sớm hoặc dừng giữa chừng sẽ được ghi nhận là bỏ cuộc'],
-};
+const PREP = [
+  'Điện thoại đã cất xa tầm tay và tắt âm',
+  'Đã đóng các tab và ứng dụng không cần cho phiên này',
+  `Tôi hiểu phiên chạy toàn màn hình; đổi tab, click ra ngoài hoặc thoát toàn màn hình quá ${GRACE_SECONDS} giây là thất bại và mất chuỗi`,
+];
 
-export function FocusSetup({ gid, onStart }: { gid: string; onStart: (s: ActiveSession) => void }) {
+export function FocusSetup({ gid, player, onStart }: { gid: string; player: Player; onStart: (s: ActiveSession) => void }) {
   const toast = useToast();
-  const [act, setAct] = useState<ActKey>('read');
+  const [act, setAct] = useState<ActKey>(SESSION_ACTS[0]);
   const [dur, setDur] = useState<number | ''>(25);
   const [goal, setGoal] = useState('');
-  const [checks, setChecks] = useState([false, false, false]);
+  const [checks, setChecks] = useState(PREP.map(() => false));
   const [busy, setBusy] = useState(false);
+  const canFullscreen = fullscreenSupported();
   const a = ACTS[act];
   const min = Number(dur) || 0;
   const tier = tierFor(min);
   const validDur = Number.isInteger(min) && min >= MIN_MINUTES && min <= MAX_MINUTES;
-  const ok = checks.every(Boolean) && validDur;
+  const ok = checks.every(Boolean) && validDur && canFullscreen;
+  const reward = rewardFor(player.currentStreak + 1);
+  const next = nextStreakTier(player.currentStreak + 1);
 
   async function begin() {
     if (!validDur) { toast(`Thời gian cam kết cần từ ${MIN_MINUTES} đến ${MAX_MINUTES} phút.`); return; }
     setBusy(true);
+    // Bật toàn màn hình trước, ngay trong cú bấm của người dùng (trình duyệt chỉ cho phép lúc này).
+    try {
+      await enterFullscreen();
+    } catch {
+      toast('Không bật được chế độ toàn màn hình. Hãy cho phép toàn màn hình rồi thử lại.');
+      setBusy(false);
+      return;
+    }
     try {
       onStart(await api<ActiveSession>('POST', `/groups/${gid}/sessions`, { act, minutes: min, goal: goal.trim(), day: dkey(Date.now()) }));
-    } catch (e) { toast(errorMessage(e)); setBusy(false); }
+    } catch (e) {
+      exitFullscreen();
+      toast(errorMessage(e));
+      setBusy(false);
+    }
   }
 
   return (
     <section className="flex flex-col gap-3.5">
       <div><Eyebrow>Đăng ký phiên</Eyebrow><h2>Cam kết trước, tập trung sau</h2></div>
+      {!canFullscreen && (
+        <Banner tone="bad">
+          Trình duyệt này không hỗ trợ chế độ toàn màn hình (thường gặp trên iPhone và iPad), nên chưa bắt đầu phiên được.
+          Hãy dùng máy tính, hoặc điện thoại Android với Chrome.
+        </Banner>
+      )}
+      <Card className="border-lamp">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5">
+          <div className="flex items-center gap-2">
+            <Icon name="fire" className="size-8" />
+            <div><Eyebrow>Chuỗi hiện tại</Eyebrow><b className="text-lg">{player.currentStreak} phiên</b></div>
+          </div>
+          <div>
+            <Eyebrow>Hoàn thành phiên này nhận</Eyebrow>
+            <div className="flex items-center gap-3 text-lg font-bold">
+              <span className="flex items-center gap-1"><Icon name="gold" className="size-6" />+{reward.gold}</span>
+              <span className="flex items-center gap-1"><Icon name="wood" className="size-6" />+{reward.wood}</span>
+              {reward.mult > 1 && <span className="rounded-full bg-lamp px-2.5 py-0.5 text-sm text-lamp-ink">×{reward.mult}</span>}
+            </div>
+          </div>
+        </div>
+        <p className="text-[13px] text-muted">
+          Mỗi phiên hoàn thành: {rewardFor(1).gold} vàng và {rewardFor(1).wood} gỗ, nhân ×2 từ chuỗi 5, ×3 từ chuỗi 10, ×3,5 từ chuỗi 15.
+          {next ? ` Còn ${next.at - player.currentStreak - 1} phiên nữa sau phiên này để lên ×${String(next.mult).replace('.', ',')}.` : ' Bạn đang ở mức thưởng cao nhất.'}
+          {' '}Một phiên thất bại sẽ đưa chuỗi về 0.
+        </p>
+      </Card>
       <Card>
         <h3>1. Chọn hoạt động</h3>
-        <Grid cols={3}>
-          {ACT_KEYS.map((k) => (
-            <Option key={k} pressed={act === k} onClick={() => { setAct(k); setChecks([false, false, false]); }} title={ACTS[k].n}
-              sub={ACTS[k].mode === 'screen' ? 'Trên máy · theo dõi rời trang' : 'Ngoài màn hình · cất điện thoại'} />
+        <Grid>
+          {SESSION_ACTS.map((k) => (
+            <Option key={k} pressed={act === k} onClick={() => setAct(k)} title={ACTS[k].n} sub="Trên máy · toàn màn hình, giám sát rời màn hình" />
           ))}
         </Grid>
         <p className="text-[13px] text-muted">{a.d}</p>
@@ -49,8 +96,8 @@ export function FocusSetup({ gid, onStart }: { gid: string; onStart: (s: ActiveS
           <input type="number" className={inputCls} min={MIN_MINUTES} max={MAX_MINUTES} value={dur} onChange={(e) => setDur(e.target.value === '' ? '' : Number(e.target.value))} />
         </Field>
         <p className="text-[13px] text-muted">
-          {tier ? `Với ${min} phút, bạn nhận công trình hạng “${TIERS[tier - 1].n}”. ` + (tier < 4 ? `Hạng cao hơn mở ở ${TIERS[tier].min} phút.` : 'Đây là hạng cao nhất.') : `Cần tối thiểu ${MIN_MINUTES} phút để nhận công trình.`}
-          {' '}Đã bấm bắt đầu thì không đổi được thời gian; dừng sớm tính là bỏ cuộc.
+          {tier ? `Với ${min} phút, bạn còn nhận công trình hạng “${TIERS[tier - 1].n}”. ` + (tier < 4 ? `Hạng cao hơn mở ở ${TIERS[tier].min} phút.` : 'Đây là hạng cao nhất.') : `Cần tối thiểu ${MIN_MINUTES} phút.`}
+          {' '}Đã bấm bắt đầu thì không đổi được thời gian.
         </p>
       </Card>
       <Card>
@@ -62,9 +109,9 @@ export function FocusSetup({ gid, onStart }: { gid: string; onStart: (s: ActiveS
       <Card>
         <h3>4. Chuẩn bị</h3>
         <div>
-          {PREP[a.mode].map((c, i) => <Check key={act + i} checked={checks[i]} onChange={(v) => setChecks((x) => x.map((y, j) => (j === i ? v : y)))}>{c}</Check>)}
+          {PREP.map((c, i) => <Check key={i} checked={checks[i]} onChange={(v) => setChecks((x) => x.map((y, j) => (j === i ? v : y)))}>{c}</Check>)}
         </div>
-        <div><Button variant="primary" big disabled={!ok || busy} onClick={begin}>Cam kết {min || '…'} phút và bắt đầu</Button></div>
+        <div><Button variant="primary" big disabled={!ok || busy} onClick={begin}>Vào toàn màn hình và bắt đầu {min || '…'} phút</Button></div>
       </Card>
     </section>
   );

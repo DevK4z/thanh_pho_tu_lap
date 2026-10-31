@@ -42,6 +42,14 @@ export interface Player {
   plot: PlotItem[];
   pending: PendingReward[];
   quitReasons: Partial<Record<QuitReason, number>>;
+  gold: number;
+  wood: number;
+  /** Số phiên thành công liên tiếp; về 0 khi một phiên thất bại. */
+  currentStreak: number;
+  bestStreak: number;
+  /** Phiên hoàn thành và phiên thất bại (bỏ cuộc, rời màn hình, đóng trang). */
+  tasksDone: number;
+  tasksFailed: number;
   days: Days;
   createdAt: number;
   lastAt: number | null;
@@ -108,7 +116,16 @@ export interface SessionResult {
   mode: Mode;
   prevLv: number;
   newLv: number;
+  /** Vàng, gỗ nhận được và hệ số chuỗi đã áp dụng. */
+  gold: number;
+  wood: number;
+  mult: number;
+  stats: TaskStats;
 }
+
+/** Tổng hợp nhiệm vụ của một người sau khi phiên kết thúc. */
+export interface TaskStats { tasksDone: number; tasksFailed: number; currentStreak: number; bestStreak: number; gold: number; wood: number }
+export interface QuitResult { lostStreak: number; stats: TaskStats }
 
 export interface GroupQuestion { id: string; act: ActKey | 'all'; q: string; o: string[]; a: number }
 

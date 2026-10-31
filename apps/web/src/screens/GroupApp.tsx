@@ -7,7 +7,8 @@ import { Layout } from '../components/Layout';
 import { api, ApiError, errorMessage } from '../lib/api';
 import { qk, useGroup, useGroupMembership } from '../lib/queries';
 import { Admin } from './Admin';
-import { FocusRun, type RunMeasures } from './FocusRun';
+import { FocusFailed } from './FocusFailed';
+import { FocusRun, type FailInfo, type RunMeasures } from './FocusRun';
 import { FocusSetup } from './FocusSetup';
 import { FocusVerify } from './FocusVerify';
 import { GroupBoard } from './GroupBoard';
@@ -17,11 +18,12 @@ import { Reward } from './Reward';
 import { Town } from './Town';
 
 export type Tab = 'town' | 'focus' | 'mine' | 'group' | 'admin';
-/** Luồng phiên tập trung: đang chạy → xác nhận → nhận thưởng. */
+/** Luồng phiên tập trung: đang chạy → xác nhận → nhận thưởng, hoặc đang chạy → thất bại. */
 export type Flow =
   | { step: 'run'; s: ActiveSession }
   | { step: 'verify'; s: ActiveSession; m: RunMeasures }
-  | { step: 'reward'; result: SessionResult | null };
+  | { step: 'reward'; result: SessionResult | null }
+  | { step: 'failed'; info: FailInfo };
 
 export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   const toast = useToast();
@@ -35,7 +37,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   const player = d?.players.find((p) => p.id === d.meId) ?? null;
   const refresh = () => qc.invalidateQueries({ queryKey: qk.group(gid) });
 
-  // Mở lại trang khi đang có phiên: phiên trên máy tính là bỏ cuộc, phiên ngoài màn hình chạy tiếp.
+  // Mở lại trang khi đang có phiên: phiên trên máy tính là thất bại (đã rời trang), phiên ngoài màn hình cũ chạy tiếp.
   const resumed = useRef(false);
   useEffect(() => {
     if (!d || resumed.current) return;
@@ -44,7 +46,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     if (!a || flow) return;
     if (a.mode === 'screen') {
       api('POST', `/sessions/${a.id}/quit`, { reason: 'closed', awaySec: 0, dist: 0 })
-        .then(() => { toast('Phiên trước chưa kết thúc nên được tính là bỏ cuộc.'); refresh(); })
+        .then(() => { toast('Phiên trước bị đóng giữa chừng nên được tính là thất bại.'); refresh(); })
         .catch((e) => toast(errorMessage(e)));
       return;
     }
@@ -79,9 +81,10 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
 
   const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['mine', 'Của tôi'], ['group', 'Nhóm']];
   if (d.isOwner) tabs.push(['admin', 'Quản trị']);
-  const current: Tab = inFlow ? 'focus' : flow?.step === 'reward' ? 'town' : tab;
+  const current: Tab = inFlow || flow?.step === 'failed' ? 'focus' : flow?.step === 'reward' ? 'town' : tab;
   function go(t: Tab) {
     if (inFlow) { toast('Bạn đang trong phiên cam kết.'); return; }
+    if (flow?.step === 'failed') setFlow(null);
     if (flow?.step === 'reward' && t !== 'town') { toast('Hãy đặt công trình trước.'); return; }
     setTab(t);
   }
@@ -98,9 +101,11 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
 
   let body;
   if (flow?.step === 'run') {
-    body = <FocusRun s={flow.s} onFinish={(m) => setFlow({ step: 'verify', s: flow.s, m })} onQuit={() => { setFlow(null); setTab('town'); refresh(); }} />;
+    body = <FocusRun me={me} s={flow.s} onFinish={(m) => setFlow({ step: 'verify', s: flow.s, m })} onFailed={(info) => { setFlow({ step: 'failed', info }); refresh(); }} />;
   } else if (flow?.step === 'verify') {
-    body = <FocusVerify s={flow.s} m={flow.m} onDone={async (result) => { await refresh(); setFlow({ step: 'reward', result }); }} />;
+    body = <FocusVerify me={me} s={flow.s} m={flow.m} onDone={async (result) => { await refresh(); setFlow({ step: 'reward', result }); }} />;
+  } else if (flow?.step === 'failed') {
+    body = <FocusFailed info={flow.info} onRetry={() => { setFlow(null); setTab('focus'); }} onTown={() => { setFlow(null); setTab('town'); }} />;
   } else if (!player && current !== 'group') {
     body = <Onboard gid={gid} defaultName={me.name} onCreated={() => setTab('town')} />;
   } else if (flow?.step === 'reward' && player && player.pending.length) {
@@ -108,7 +113,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   } else if (current === 'town' && player) {
     body = <Town detail={d} player={player} onTab={go} onReward={() => setFlow({ step: 'reward', result: null })} />;
   } else if (current === 'focus' && player) {
-    body = <FocusSetup gid={gid} onStart={(s) => setFlow({ step: 'run', s })} />;
+    body = <FocusSetup gid={gid} player={player} onStart={(s) => setFlow({ step: 'run', s })} />;
   } else if (current === 'mine' && player) {
     body = <Mine gid={gid} player={player} onTab={go} />;
   } else if (current === 'admin' && d.isOwner) {

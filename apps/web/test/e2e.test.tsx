@@ -17,12 +17,24 @@ let shift = 0;
 let App: typeof import('../src/App').App;
 let ToastProvider: typeof import('../src/components/ui').ToastProvider;
 
+/** jsdom không có Fullscreen API: giả lập để kiểm tra luồng toàn màn hình và chống gian lận. */
+let fsEl: Element | null = null;
+function installFullscreen() {
+  Object.defineProperty(document, 'fullscreenElement', { get: () => fsEl, configurable: true });
+  Object.defineProperty(document, 'fullscreenEnabled', { get: () => true, configurable: true });
+  Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+  const change = () => document.dispatchEvent(new Event('fullscreenchange'));
+  document.documentElement.requestFullscreen = async () => { fsEl = document.documentElement; change(); };
+  document.exitFullscreen = async () => { fsEl = null; change(); };
+}
+
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: resolve(__dirname, '../../api/drizzle') });
   server = await buildApp({ db: database.db, env: loadEnv({}), rateLimit: false });
   await server.listen({ port: 0, host: '127.0.0.1' });
   vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:' + (server.server.address() as AddressInfo).port);
   vi.spyOn(Date, 'now').mockImplementation(() => realNow() + shift);
+  installFullscreen();
   // Nhập sau khi đặt địa chỉ API.
   ({ App } = await import('../src/App'));
   ({ ToastProvider } = await import('../src/components/ui'));
@@ -44,7 +56,8 @@ const tab = (name: string) => within(screen.getByRole('navigation', { name: 'Đi
 const type = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 describe('giao diện + API', () => {
-  it('người A: khách → lập nhóm → tạo nhà → phiên → thưởng', async () => {
+  it('người A: khách → lập nhóm → tạo nhà → phiên toàn màn hình → thưởng → thất bại vì rời màn hình', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     mount();
     await find('Vào thành phố của bạn');
     expect(btn(/Tiếp tục với Google/)).toHaveProperty('disabled', true);
@@ -71,19 +84,32 @@ describe('giao diện + API', () => {
 
     fireEvent.click(tab('Tập trung'));
     await find('Cam kết trước, tập trung sau');
+    // Chỉ còn hoạt động trên máy.
+    expect(screen.queryByRole('button', { name: /Đọc sách giấy/ })).toBeNull();
+    expect(screen.getByText('0 phiên')).toBeTruthy();
     fireEvent.click(btn(/Học sâu trên máy/));
     fireEvent.click(btn('5 phút'));
-    const begin = btn(/Cam kết 5 phút và bắt đầu/);
+    const begin = btn(/Vào toàn màn hình và bắt đầu 5 phút/);
     expect(begin).toHaveProperty('disabled', true);
     screen.getAllByRole('checkbox').forEach((c) => fireEvent.click(c));
     fireEvent.click(begin);
     await find('còn lại');
+    expect(fsEl).toBe(document.documentElement);
     expect(screen.queryByText('Đăng xuất')).toBeNull();
-    expect(screen.getByText('lần rời trang')).toBeTruthy();
+    await find('Chưa có cảnh báo nào. Giữ vững nhé!');
 
-    // Tua nhanh hết 5 phút: phiên chuyển sang bước xác nhận.
+    // Thoát toàn màn hình (như bấm Escape) rồi quay lại kịp trong 3 giây: chỉ ghi cảnh báo.
+    await document.exitFullscreen();
+    await find('Bạn đang rời khỏi phiên!');
+    fireEvent.click(btn('Quay lại toàn màn hình'));
+    await find(/quay lại kịp trong thời gian ân hạn/);
+    expect(screen.queryByText('Bạn đang rời khỏi phiên!')).toBeNull();
+    expect(screen.getByText('Thoát chế độ toàn màn hình')).toBeTruthy();
+
+    // Tua nhanh hết 5 phút: phiên chuyển sang bước xác nhận và thoát toàn màn hình.
     shift = 5 * 60 * 1000 + 1000;
     await screen.findByText('Xác nhận để nhận công trình', {}, { timeout: 3000 });
+    expect(fsEl).toBeNull();
     const finish = btn('Hoàn thành phiên');
     expect(finish).toHaveProperty('disabled', true);
     const question = screen.getAllByRole('heading', { level: 3 })[0].closest('div')!;
@@ -93,6 +119,9 @@ describe('giao diện + API', () => {
     fireEvent.click(finish);
 
     await find('Hoàn thành 5 phút');
+    await find('+50 vàng');
+    await find('+50 gỗ');
+    expect(logSpy).toHaveBeenCalledWith('[sendDataToAdmin]', expect.objectContaining({ taskStatus: 'success', totalTasks: 1, successTasks: 1, completionRate: 100, currentStreak: 1 }));
     await find('Chọn một công trình');
     fireEvent.click(btn(/Cây xanh/));
     const slot = document.querySelector('[data-slot="0"]')!;
@@ -102,6 +131,31 @@ describe('giao diện + API', () => {
     await find('Thành phố của An');
     await waitFor(() => expect(screen.getByText('1 / 35')).toBeTruthy());
     expect(screen.getByText('5 phút')).toBeTruthy();
+    const res = () => within(screen.getByLabelText('Tài nguyên'));
+    expect(res().getAllByText('50')).toHaveLength(2);
+    expect(res().getByText('1 / 0 (100%)')).toBeTruthy();
+
+    // Phiên thứ hai: click ra ngoài cửa sổ quá 3 giây → thất bại, chuỗi về 0.
+    fireEvent.click(tab('Tập trung'));
+    await find('1 phiên');
+    fireEvent.click(btn('5 phút'));
+    screen.getAllByRole('checkbox').forEach((c) => fireEvent.click(c));
+    fireEvent.click(btn(/Vào toàn màn hình và bắt đầu 5 phút/));
+    await find('còn lại');
+    fireEvent.blur(window);
+    await find('Bạn đang rời khỏi phiên!');
+    shift += 4000;
+    await screen.findByText('Phiên thất bại', {}, { timeout: 3000 });
+    expect(screen.getAllByText('Bạn đã mất tập trung!').length).toBeGreaterThan(0);
+    await find('Click ra ngoài cửa sổ hoặc chuyển ứng dụng quá thời gian ân hạn. Chuỗi 1 phiên thành công đã về 0.');
+    await find(/quá thời gian ân hạn, phiên thất bại/);
+    expect(fsEl).toBeNull();
+    expect(logSpy).toHaveBeenCalledWith('[sendDataToAdmin]', expect.objectContaining({ taskStatus: 'failed', totalTasks: 2, failedTasks: 1, completionRate: 50, currentStreak: 0 }));
+    fireEvent.focus(window);
+    fireEvent.click(btn('Về thành phố'));
+    await find('Thành phố của An');
+    await waitFor(() => expect(res().getByText('1 / 1 (50%)')).toBeTruthy());
+    logSpy.mockRestore();
 
     fireEvent.click(tab('Của tôi'));
     await find('Tiến bộ của tôi');

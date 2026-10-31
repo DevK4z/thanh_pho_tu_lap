@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ACTS, LIMITS, MIN_NOTE_WORDS, wordCount, type ActiveSession, type SessionResult } from '@tptl/shared';
+import { ACTS, LIMITS, MIN_NOTE_WORDS, wordCount, type ActiveSession, type Me, type SessionResult } from '@tptl/shared';
 import { Button, Card, Check, Chip, Eyebrow, Field, inputCls, Option, useToast } from '../components/ui';
+import { sendDataToAdmin } from '../lib/adminReport';
 import { api, errorMessage } from '../lib/api';
 import type { RunMeasures } from './FocusRun';
 
-export function FocusVerify({ s, m, onDone }: { s: ActiveSession; m: RunMeasures; onDone: (r: SessionResult) => void }) {
+export function FocusVerify({ me, s, m, onDone }: { me: Me; s: ActiveSession; m: RunMeasures; onDone: (r: SessionResult) => void }) {
   const toast = useToast();
   const a = ACTS[s.act];
   const [ans, setAns] = useState<(number | null)[]>(() => s.verify.map(() => null));
@@ -19,9 +20,11 @@ export function FocusVerify({ s, m, onDone }: { s: ActiveSession; m: RunMeasures
     if (!ready) return;
     setBusy(true);
     try {
-      onDone(await api<SessionResult>('POST', `/sessions/${s.id}/complete`, {
+      const r = await api<SessionResult>('POST', `/sessions/${s.id}/complete`, {
         awaySec: Math.round(m.awaySec), dist: m.dist, self, note: note.trim(), confirmed: conf, verify: ans,
-      }));
+      });
+      sendDataToAdmin(me.id, 'success', r.stats);
+      onDone(r);
     } catch (e) { toast(errorMessage(e)); setBusy(false); }
   }
 
