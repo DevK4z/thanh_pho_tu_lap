@@ -193,7 +193,13 @@ describe('giao diện + API', () => {
     expect(screen.queryByRole('button', { name: 'Quản trị' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Báo cáo' })).toBeNull();
     fireEvent.click(btn('Bắt đầu xây thành phố'));
-    await find('Thành phố của 2 thành viên, xếp theo tiến độ xây dựng.');
+    await find(/Thành phố của 2 thành viên, xếp theo tiến độ xây dựng\./);
+    // Tham quan thành phố hàng xóm.
+    fireEvent.click(btn('Tham quan thành phố của An'));
+    const visit = await screen.findByRole('dialog', { name: 'Thành phố của An' });
+    expect(within(visit).getByText(/1 công trình · dân số/)).toBeTruthy();
+    fireEvent.click(within(visit).getByRole('button', { name: 'Đóng' }));
+    expect(screen.queryByRole('dialog', { name: 'Thành phố của An' })).toBeNull();
 
     fireEvent.click(btn('Đổi nhóm'));
     await find('Chọn nhóm');

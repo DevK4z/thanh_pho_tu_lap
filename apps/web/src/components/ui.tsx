@@ -144,7 +144,7 @@ export const tableCls = {
   td: 'whitespace-nowrap border-b border-line px-2.5 py-2 text-right first:text-left',
 };
 
-export function Modal({ label, children, onClose }: { label: string; children: ReactNode; onClose?: () => void }) {
+export function Modal({ label, children, onClose, wide }: { label: string; children: ReactNode; onClose?: () => void; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('button,input,[tabindex]')?.focus();
@@ -154,7 +154,7 @@ export function Modal({ label, children, onClose }: { label: string; children: R
   }, [onClose]);
   return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(5,15,13,.62)] p-4">
-      <div ref={ref} role="dialog" aria-modal="true" aria-label={label} className="flex max-h-[92vh] w-[min(520px,100%)] flex-col gap-3.5 overflow-auto rounded-[14px] border border-line bg-surface p-4">
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={label} className={'flex max-h-[94vh] flex-col gap-3.5 overflow-auto rounded-[14px] border border-line bg-surface p-4 ' + (wide ? 'w-[min(1100px,100%)]' : 'w-[min(520px,100%)]')}>
         {children}
       </div>
     </div>,
