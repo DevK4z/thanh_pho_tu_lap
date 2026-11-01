@@ -11,7 +11,7 @@ Mini app cho CLB rèn luyện kỷ luật tự thân và khả năng tập trung
 - **Phần thưởng:** mỗi phiên hoàn thành nhận một công trình (cam kết càng lâu công trình càng hiếm), mạ vàng nếu điểm tập trung từ 85. Chuỗi phiên thành công liên tiếp được theo dõi làm thành tích.
 - Mỗi thành viên có thành phố riêng; theo dõi chuỗi hiện tại, chuỗi dài nhất, số phiên thành công/thất bại.
 - Bảng cá nhân, bảng cả nhóm (đánh giá hiệu quả chương trình), quản trị nhóm (từng thành viên, nhật ký, ngân hàng câu hỏi, xuất CSV).
-- **Báo cáo cho quản trị viên ứng dụng** (trang `#bao-cao`): tỷ lệ hoàn thành, tỷ lệ bỏ cuộc và tỷ lệ thời gian hoàn thành trên thời gian đăng ký của từng người ở mọi nhóm; lọc theo 7/30/90 ngày, theo nhóm, xuất CSV. Quản trị viên là người đăng nhập Google/Facebook bằng email nằm trong biến `ADMIN_EMAILS` của API. Quản trị viên có quyền trưởng nhóm ở mọi nhóm, và có thêm **công cụ thử nghiệm** trong tab Quản trị để cấp phần thưởng công trình (chọn hạng, số lượng, mạ vàng) cho bất kỳ thành viên nào.
+- **Báo cáo cho quản trị viên ứng dụng** (trang `#bao-cao`): tỷ lệ hoàn thành, tỷ lệ bỏ cuộc và tỷ lệ thời gian hoàn thành trên thời gian đăng ký của từng người ở mọi nhóm; lọc theo 7/30/90 ngày, theo nhóm, xuất CSV. Quản trị viên là người đăng nhập **Google** bằng email nằm trong biến `ADMIN_EMAILS` của API (đăng nhập Facebook chỉ lấy tên và ảnh nên không có email, và không thể là quản trị viên). Quản trị viên có quyền trưởng nhóm ở mọi nhóm, và có thêm **công cụ thử nghiệm** trong tab Quản trị để cấp phần thưởng công trình (chọn hạng, số lượng, mạ vàng) cho bất kỳ thành viên nào.
 
 ## Kiến trúc
 

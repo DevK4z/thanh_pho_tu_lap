@@ -43,11 +43,11 @@ export async function renderGoogleButton(el: HTMLElement, clientId: string, onCr
 }
 
 let fbReady: Promise<void> | null = null;
-/** Mở hộp thoại Facebook Login; trả về access token, hoặc null nếu người dùng đóng hộp thoại. */
+/** Mở hộp thoại Facebook Login (chỉ xin tên và ảnh, quyền public_profile không cần Meta xét duyệt); trả về access token, hoặc null nếu người dùng đóng hộp thoại. */
 export async function facebookLogin(appId: string): Promise<string | null> {
   fbReady ??= loadScript('https://connect.facebook.net/vi_VN/sdk.js').then(() => {
     window.FB!.init({ appId, cookie: false, xfbml: false, version: 'v19.0' });
   });
   await fbReady;
-  return new Promise((ok) => window.FB!.login((r) => ok(r.authResponse?.accessToken ?? null), { scope: 'public_profile,email' }));
+  return new Promise((ok) => window.FB!.login((r) => ok(r.authResponse?.accessToken ?? null), { scope: 'public_profile' }));
 }

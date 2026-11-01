@@ -21,7 +21,8 @@ export function googleVerifier(clientId: string): Verifier {
   };
 }
 
-/** Xác minh access token của Facebook Login: token phải hợp lệ và được cấp cho đúng app. */
+/** Xác minh access token của Facebook Login: token phải hợp lệ và được cấp cho đúng app.
+    Chỉ lấy tên và ảnh (không xin quyền email), nên tài khoản Facebook không có email. */
 export function facebookVerifier(appId: string, appSecret: string, fetchImpl: typeof fetch = fetch): Verifier {
   const graph = 'https://graph.facebook.com/v19.0';
   const fail = () => new HttpError(401, 'invalid_credential', 'Không xác minh được tài khoản Facebook. Hãy thử lại.');
@@ -30,10 +31,10 @@ export function facebookVerifier(appId: string, appSecret: string, fetchImpl: ty
       .then((r) => r.json() as Promise<{ data?: { is_valid?: boolean; app_id?: string; user_id?: string } }>)
       .catch(() => { throw fail(); });
     if (!dbg.data?.is_valid || dbg.data.app_id !== appId || !dbg.data.user_id) throw fail();
-    const me = await fetchImpl(`${graph}/me?fields=id,name,email,picture.type(large)&access_token=${encodeURIComponent(accessToken)}`)
-      .then((r) => r.json() as Promise<{ id?: string; name?: string; email?: string; picture?: { data?: { url?: string } } }>)
+    const me = await fetchImpl(`${graph}/me?fields=id,name,picture.type(large)&access_token=${encodeURIComponent(accessToken)}`)
+      .then((r) => r.json() as Promise<{ id?: string; name?: string; picture?: { data?: { url?: string } } }>)
       .catch(() => { throw fail(); });
     if (!me.id || me.id !== dbg.data.user_id) throw fail();
-    return { sub: me.id, name: me.name || 'Người dùng Facebook', email: me.email ?? null, avatarUrl: me.picture?.data?.url ?? null };
+    return { sub: me.id, name: me.name || 'Người dùng Facebook', email: null, avatarUrl: me.picture?.data?.url ?? null };
   };
 }
