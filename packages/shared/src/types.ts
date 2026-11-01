@@ -30,7 +30,7 @@ export interface Me {
   provider: Provider;
   avatarUrl: string | null;
   currentGroupId: string | null;
-  /** Quản trị viên của ứng dụng (email nằm trong ADMIN_EMAILS của máy chủ): xem được báo cáo mọi nhóm. */
+  /** Quản trị viên của ứng dụng (đăng nhập Google bằng email nằm trong ADMIN_EMAILS của máy chủ): xem được báo cáo mọi nhóm. */
   isAdmin: boolean;
 }
 

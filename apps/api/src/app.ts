@@ -91,7 +91,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   });
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: { code: 'not_found', message: 'Không tìm thấy.' } }));
 
-  const isAdmin = (u: User) => u.provider !== 'guest' && !!u.email && env.ADMIN_EMAILS.has(u.email.toLowerCase());
+  // Chỉ email Google đã xác minh mới được tính; tài khoản Facebook và khách không có email nên không phải admin.
+  const isAdmin = (u: User) => u.provider === 'google' && !!u.email && env.ADMIN_EMAILS.has(u.email.toLowerCase());
   const toMe = (u: User): Me => ({ id: u.id, name: u.name, provider: u.provider, avatarUrl: u.avatarUrl, currentGroupId: u.currentGroupId, isAdmin: isAdmin(u) });
   const ctx: Ctx = { db, env, verifiers, requireUser, isAdmin, toMe };
   // commit: mã git đang chạy (Render tự đặt RENDER_GIT_COMMIT), để kiểm tra đã deploy đúng bản.
