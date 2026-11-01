@@ -82,17 +82,9 @@ export const REASON_KEYS = Object.keys(REASONS) as QuitReason[];
 /** Lý do người dùng tự chọn khi bấm dừng phiên (closed và violation do hệ thống ghi). */
 export const USER_REASON_KEYS = REASON_KEYS.filter((k) => k !== 'closed' && k !== 'violation');
 
-/* ---------- phần thưởng và chống gian lận ---------- */
-/** Phần thưởng cơ bản cho mỗi phiên hoàn thành, trước hệ số chuỗi. */
-export const BASE_REWARD = { gold: 50, wood: 50 };
+/* ---------- chống gian lận ---------- */
 /** Rời màn hình (đổi tab, click ra ngoài, thoát toàn màn hình) lâu hơn số giây này thì phiên thất bại. */
 export const GRACE_SECONDS = 3;
-/** Mốc chuỗi phiên thành công liên tiếp và hệ số nhân thưởng tương ứng (mốc cao trước). */
-export const STREAK_TIERS: { at: number; mult: number }[] = [
-  { at: 15, mult: 3.5 },
-  { at: 10, mult: 3 },
-  { at: 5, mult: 2 },
-];
 
 /* Bản đồ 7x7 lô; hàng 3 và cột 3 là đường, lô (1,1) là nhà chính. */
 export const GN = 7;

@@ -5,7 +5,7 @@ import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   ACTS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, ACT_KEYS, DAY_RE,
-  checkCount, levelOf, rewardFor, scoreSession, tierFor, verifyCount, wordCount,
+  checkCount, levelOf, scoreSession, tierFor, verifyCount, wordCount,
   type ActKey, type DayStat, type QuitResult, type SessionResult, type TaskStats,
 } from '@tptl/shared';
 import type { Ctx, User } from '../app';
@@ -44,7 +44,7 @@ function answeredStats(q: SessionQuestions) {
 }
 
 const statsOf = (p: Pick<PlayerRow, keyof TaskStats>): TaskStats => ({
-  tasksDone: p.tasksDone, tasksFailed: p.tasksFailed, currentStreak: p.currentStreak, bestStreak: p.bestStreak, gold: p.gold, wood: p.wood,
+  tasksDone: p.tasksDone, tasksFailed: p.tasksFailed, currentStreak: p.currentStreak, bestStreak: p.bestStreak,
 });
 
 /** Báo cáo cho admin mỗi khi một phiên kết thúc: ghi vào log máy chủ (terminal khi chạy local, tab Logs trên Render). */
@@ -55,7 +55,7 @@ function reportToAdmin(log: FastifyBaseLogger, userId: string, playerId: string,
       userId, playerId, taskStatus, reason,
       totalTasks: total, successTasks: st.tasksDone, failedTasks: st.tasksFailed,
       completionRate: total ? Math.round((st.tasksDone / total) * 1000) / 10 : null,
-      currentStreak: st.currentStreak, gold: st.gold, wood: st.wood,
+      currentStreak: st.currentStreak,
     },
   }, 'admin_report');
 }
@@ -164,15 +164,11 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
         status: 'done', endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa, qc, focus, self: body.self, note: body.note, questions: q,
       }).where(eq(focusSessions.id, sid));
       await addDay(tx, p.id, s.day, { c: 1, ac: activeSec, cs: activeSec, aw: awaySec, dn: dist, ms: chk.missed, qa, qc, fs: focus, fn: 1 });
-      // Chuỗi tăng 1; hệ số thưởng tính theo chuỗi sau khi tăng.
       const streak = p.currentStreak + 1;
-      const reward = rewardFor(streak);
       const [np] = await tx.update(players).set({
         totalFocusMin: p.totalFocusMin + minutes,
         pending: p.pending.concat([{ sid, t: tier, g: shiny ? 1 : 0, m: minutes, a: s.act }]),
         lastAt: new Date(now),
-        gold: p.gold + reward.gold,
-        wood: p.wood + reward.wood,
         currentStreak: streak,
         bestStreak: Math.max(p.bestStreak, streak),
         tasksDone: p.tasksDone + 1,
@@ -180,7 +176,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       const result: SessionResult = {
         focus, minutes, tier, shiny, qc, qa, dist, away: awaySec, missed: chk.missed, mode: s.mode,
         prevLv: levelOf(p.totalFocusMin).lv, newLv: levelOf(p.totalFocusMin + minutes).lv,
-        gold: reward.gold, wood: reward.wood, mult: reward.mult, stats: statsOf(np),
+        stats: statsOf(np),
       };
       return { result, playerId: p.id };
     });

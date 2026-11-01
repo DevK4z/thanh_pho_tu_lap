@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ACTS, ACT_KEYS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, TIERS,
-  dkey, nextStreakTier, rewardFor, tierFor, type ActKey, type ActiveSession, type Player,
+  dkey, tierFor, type ActKey, type ActiveSession, type Player,
 } from '@tptl/shared';
 import { Icon } from '../components/Icons';
 import { Banner, Button, Card, Check, Chip, Eyebrow, Field, Grid, inputCls, Option, useToast } from '../components/ui';
@@ -36,8 +36,6 @@ export function FocusSetup({ gid, player, onStart }: { gid: string; player: Play
   const validDur = Number.isInteger(min) && min >= MIN_MINUTES && min <= MAX_MINUTES;
   // Chỉ phiên trên máy cần toàn màn hình; hoạt động ngoài màn hình thì người dùng cất máy đi.
   const ok = checks.every(Boolean) && validDur && (!screenMode || canFullscreen);
-  const reward = rewardFor(player.currentStreak + 1);
-  const next = nextStreakTier(player.currentStreak + 1);
 
   async function begin() {
     if (!validDur) { toast(`Thời gian cam kết cần từ ${MIN_MINUTES} đến ${MAX_MINUTES} phút.`); return; }
@@ -77,18 +75,12 @@ export function FocusSetup({ gid, player, onStart }: { gid: string; player: Play
             <div><Eyebrow>Chuỗi hiện tại</Eyebrow><b className="text-lg">{player.currentStreak} phiên</b></div>
           </div>
           <div>
-            <Eyebrow>Hoàn thành phiên này nhận</Eyebrow>
-            <div className="flex items-center gap-3 text-lg font-bold">
-              <span className="flex items-center gap-1"><Icon name="gold" className="size-6" />+{reward.gold}</span>
-              <span className="flex items-center gap-1"><Icon name="wood" className="size-6" />+{reward.wood}</span>
-              {reward.mult > 1 && <span className="rounded-full bg-lamp px-2.5 py-0.5 text-sm text-lamp-ink">×{reward.mult}</span>}
-            </div>
+            <Eyebrow>Chuỗi dài nhất</Eyebrow>
+            <b className="text-lg">{player.bestStreak} phiên</b>
           </div>
         </div>
         <p className="text-[13px] text-muted">
-          Mỗi phiên hoàn thành: {rewardFor(1).gold} vàng và {rewardFor(1).wood} gỗ, nhân ×2 từ chuỗi 5, ×3 từ chuỗi 10, ×3,5 từ chuỗi 15.
-          {next ? ` Còn ${next.at - player.currentStreak - 1} phiên nữa sau phiên này để lên ×${String(next.mult).replace('.', ',')}.` : ' Bạn đang ở mức thưởng cao nhất.'}
-          {' '}Một phiên thất bại sẽ đưa chuỗi về 0.
+          Hoàn thành phiên này để nâng chuỗi lên {player.currentStreak + 1} và nhận một công trình. Một phiên thất bại sẽ đưa chuỗi về 0.
         </p>
       </Card>
       <Card>

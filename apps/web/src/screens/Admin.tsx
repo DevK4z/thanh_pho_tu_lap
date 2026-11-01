@@ -10,10 +10,10 @@ import { LogTable } from './LogTable';
 
 function exportCSV(d: GroupDetail) {
   const keys = keysBack(365), k7 = keysBack(7);
-  const rows: (string | number)[][] = [['Tên', 'Ngày tham gia', 'Vàng', 'Gỗ', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Phiên thành công (tổng)', 'Phiên thất bại (tổng)', 'Tổng phút tập trung', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Tỷ lệ hoàn thành', 'Lần rời trang', 'Không phản hồi', 'Trả lời đúng', 'Điểm tập trung TB', 'Điểm kỷ luật 7 ngày', 'Hoạt động gần nhất']];
+  const rows: (string | number)[][] = [['Tên', 'Ngày tham gia', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Phiên thành công (tổng)', 'Phiên thất bại (tổng)', 'Tổng phút tập trung', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Tỷ lệ hoàn thành', 'Lần rời trang', 'Không phản hồi', 'Trả lời đúng', 'Điểm tập trung TB', 'Điểm kỷ luật 7 ngày', 'Hoạt động gần nhất']];
   for (const p of d.players) {
     const a = metrics(sumDays(p.days, keys), 365, p.createdAt), w = metrics(sumDays(p.days, k7), 7, p.createdAt);
-    rows.push([p.name, dkey(p.createdAt), p.gold, p.wood, p.currentStreak, p.bestStreak, p.tasksDone, p.tasksFailed, p.totalFocusMin, a.s, a.c, a.q, a.comp == null ? '' : Math.round(a.comp * 100) + '%', a.dn, a.ms, a.quiz == null ? '' : Math.round(a.quiz * 100) + '%', a.focus ?? '', w.disc ?? '', p.lastAt ? dkey(p.lastAt) : '']);
+    rows.push([p.name, dkey(p.createdAt), p.currentStreak, p.bestStreak, p.tasksDone, p.tasksFailed, p.totalFocusMin, a.s, a.c, a.q, a.comp == null ? '' : Math.round(a.comp * 100) + '%', a.dn, a.ms, a.quiz == null ? '' : Math.round(a.quiz * 100) + '%', a.focus ?? '', w.disc ?? '', p.lastAt ? dkey(p.lastAt) : '']);
   }
   const csv = '﻿' + rows.map((r) => r.map((c) => { const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a');

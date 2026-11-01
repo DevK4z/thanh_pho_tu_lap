@@ -162,8 +162,9 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect(me.totalFocusMin).toBe(25);
     expect(me.pending).toHaveLength(1);
     expect(me.days[s.day]).toMatchObject({ s: 1, c: 1, pl: 1500, cs: 1500, dn: 2, ms: 1, qa: 3, qc: 2, fn: 1 });
-    expect(me).toMatchObject({ gold: 50, wood: 50, currentStreak: 1, bestStreak: 1, tasksDone: 1, tasksFailed: 0 });
-    expect(r.body).toMatchObject({ gold: 50, wood: 50, mult: 1, stats: { currentStreak: 1, tasksDone: 1 } });
+    expect(me).toMatchObject({ currentStreak: 1, bestStreak: 1, tasksDone: 1, tasksFailed: 0 });
+    expect(r.body).toMatchObject({ stats: { currentStreak: 1, tasksDone: 1 } });
+    expect(r.body).not.toHaveProperty('gold');
     expect(d.isOwner).toBe(true);
   });
 
@@ -176,7 +177,7 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect((await call('POST', `/groups/${gid}/plot`, A.token, { item: 'cay', slot: 4 })).body.error.code).toBe('no_reward');
   });
 
-  it('phiên ngoài màn hình: cần xác nhận và ghi chú đủ dài, hoàn thành vẫn nhận vàng, gỗ, tăng chuỗi', async () => {
+  it('phiên ngoài màn hình: cần xác nhận và ghi chú đủ dài, hoàn thành vẫn tăng chuỗi và nhận công trình', async () => {
     expect((await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'bơi', minutes: 10, day: today() })).status).toBe(400);
     const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'read', minutes: 10, day: today() })).body as ActiveSession;
     expect(s).toMatchObject({ mode: 'offline', checks: [] });
@@ -186,7 +187,7 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect((await call('POST', `/sessions/${s.id}/complete`, B.token, { ...base, note: 'một hai ba bốn năm sáu' })).body.error.code).toBe('not_confirmed');
     expect((await call('POST', `/sessions/${s.id}/complete`, B.token, { ...base, confirmed: true, note: 'ngắn quá' })).body.error.code).toBe('note_too_short');
     const r = await call('POST', `/sessions/${s.id}/complete`, B.token, { ...base, confirmed: true, note: 'một hai ba bốn năm sáu' });
-    expect(r.body).toMatchObject({ mode: 'offline', gold: 50, wood: 50, stats: { currentStreak: 1, tasksDone: 1 } });
+    expect(r.body).toMatchObject({ mode: 'offline', stats: { currentStreak: 1, tasksDone: 1 } });
     await call('POST', `/groups/${gid}/plot`, B.token, { item: 'cay', slot: 0 });
   });
 
@@ -251,14 +252,14 @@ describe('luồng nhóm và phiên tập trung', () => {
       shift += 301_000;
       return (await call('POST', `/sessions/${s.id}/complete`, C.token, { awaySec: 0, dist: 0, self: 5, verify: [0] })).body;
     }
-    const got: [number, number, number][] = [];
-    for (let i = 0; i < 6; i++) { const r = await run(true); got.push([r.stats.currentStreak, r.mult, r.gold]); }
-    expect(got).toEqual([[1, 1, 50], [2, 1, 50], [3, 1, 50], [4, 1, 50], [5, 2, 100], [6, 2, 100]]);
+    const got: number[] = [];
+    for (let i = 0; i < 6; i++) { const r = await run(true); got.push(r.stats.currentStreak); }
+    expect(got).toEqual([1, 2, 3, 4, 5, 6]);
 
     const f = await run(false);
-    expect(f).toEqual({ lostStreak: 6, stats: { tasksDone: 6, tasksFailed: 1, currentStreak: 0, bestStreak: 6, gold: 400, wood: 400 } });
+    expect(f).toEqual({ lostStreak: 6, stats: { tasksDone: 6, tasksFailed: 1, currentStreak: 0, bestStreak: 6 } });
     const again = await run(true);
-    expect(again).toMatchObject({ mult: 1, gold: 50, stats: { currentStreak: 1, bestStreak: 6, gold: 450 } });
+    expect(again).toMatchObject({ stats: { currentStreak: 1, bestStreak: 6, tasksDone: 7 } });
 
     const d = (await call('GET', '/groups/' + gid, C.token)).body as GroupDetail;
     expect(d.players.find((p) => p.id === d.meId)!.quitReasons).toEqual({ violation: 1 });
@@ -308,14 +309,12 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect((await call('GET', '/groups/' + gid, B.token)).body).toMatchObject({ isOwner: false, canManage: false });
     // Công cụ cấp phát: chỉ quản trị viên ứng dụng; trưởng nhóm thường không tự cấp được.
     const grant = (token: string, pid: string, body: object) => call('POST', `/groups/${gid}/players/${pid}/grant`, token, body);
-    expect((await grant(A.token, aPid, { gold: 100 })).body.error.code).toBe('admin_only');
+    expect((await grant(A.token, aPid, { rewards: { tier: 1, count: 1 } })).body.error.code).toBe('admin_only');
     expect((await grant(boss.token, aPid, {})).status).toBe(400);
     expect((await grant(boss.token, aPid, { rewards: { tier: 5, count: 1 } })).status).toBe(400);
     const before = ((await call('GET', '/groups/' + gid, A.token)).body as GroupDetail).players.find((x) => x.id === aPid)!;
-    const g1 = await grant(boss.token, aPid, { gold: 1000, wood: 500, rewards: { tier: 4, count: 2, shiny: true } });
-    expect(g1.body).toEqual({ name: 'An', gold: before.gold + 1000, wood: before.wood + 500, pending: before.pending.length + 2 });
-    // Trừ quá số đang có thì về 0.
-    expect((await grant(boss.token, aPid, { gold: -999_999 })).body.gold).toBe(0);
+    const g1 = await grant(boss.token, aPid, { rewards: { tier: 4, count: 2, shiny: true } });
+    expect(g1.body).toEqual({ name: 'An', pending: before.pending.length + 2 });
     // Phần thưởng được cấp dùng như phần thưởng thật: đặt được công trình hạng Hiếm, có mạ vàng.
     const placed = await call('POST', `/groups/${gid}/plot`, A.token, { item: 'thap', slot: 20 });
     expect(placed.body.plot).toContainEqual({ s: 20, i: 'thap', t: 4, g: 1 });

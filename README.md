@@ -8,10 +8,10 @@ Mini app cho CLB rèn luyện kỷ luật tự thân và khả năng tập trung
 - Chọn lập nhóm mới hoặc tham gia nhóm có sẵn (nút tham gia bị khóa khi chưa có nhóm nào). Người lập nhóm là trưởng nhóm, có tab Quản trị. Đổi nhóm bất kỳ lúc nào; tiến độ ở mỗi nhóm được giữ lại.
 - Đăng ký phiên tập trung (đọc sách giấy, học sâu trên máy, viết, vận động, chăm cây) với thời gian tối thiểu 5–180 phút.
 - **Chống gian lận (phiên trên máy: học sâu, viết):** phiên chạy ở chế độ toàn màn hình. Đổi tab, thu nhỏ trình duyệt, click ra ngoài cửa sổ hoặc thoát toàn màn hình (kể cả bấm Escape) quá 3 giây là phiên thất bại và chuỗi về 0; quay lại kịp thì chỉ ghi cảnh báo. Có câu hỏi kiểm tra hiện diện ngẫu nhiên và câu hỏi xác nhận sau phiên. Hoạt động ngoài màn hình (đọc sách giấy, vận động, chăm cây) không giám sát rời màn hình vì người dùng cất máy đi; cuối phiên phải trả lời câu hỏi và xác nhận đã làm đủ thời gian. Dừng giữa chừng ở bất kỳ hoạt động nào cũng là thất bại và mất chuỗi.
-- **Phần thưởng:** mỗi phiên hoàn thành nhận 50 vàng, 50 gỗ và một công trình (cam kết càng lâu công trình càng hiếm). Chuỗi phiên thành công liên tiếp nhân thưởng: ×2 từ chuỗi 5, ×3 từ chuỗi 10, ×3,5 từ chuỗi 15.
-- Mỗi thành viên có thành phố riêng; theo dõi vàng, gỗ, chuỗi hiện tại, chuỗi dài nhất, số phiên thành công/thất bại.
+- **Phần thưởng:** mỗi phiên hoàn thành nhận một công trình (cam kết càng lâu công trình càng hiếm), mạ vàng nếu điểm tập trung từ 85. Chuỗi phiên thành công liên tiếp được theo dõi làm thành tích.
+- Mỗi thành viên có thành phố riêng; theo dõi chuỗi hiện tại, chuỗi dài nhất, số phiên thành công/thất bại.
 - Bảng cá nhân, bảng cả nhóm (đánh giá hiệu quả chương trình), quản trị nhóm (từng thành viên, nhật ký, ngân hàng câu hỏi, xuất CSV).
-- **Báo cáo cho quản trị viên ứng dụng** (trang `#bao-cao`): tỷ lệ hoàn thành, tỷ lệ bỏ cuộc và tỷ lệ thời gian hoàn thành trên thời gian đăng ký của từng người ở mọi nhóm; lọc theo 7/30/90 ngày, theo nhóm, xuất CSV. Quản trị viên là người đăng nhập Google/Facebook bằng email nằm trong biến `ADMIN_EMAILS` của API. Quản trị viên có quyền trưởng nhóm ở mọi nhóm, và có thêm **công cụ thử nghiệm** trong tab Quản trị để cấp vàng, gỗ và phần thưởng công trình (chọn hạng, số lượng, mạ vàng) cho bất kỳ thành viên nào.
+- **Báo cáo cho quản trị viên ứng dụng** (trang `#bao-cao`): tỷ lệ hoàn thành, tỷ lệ bỏ cuộc và tỷ lệ thời gian hoàn thành trên thời gian đăng ký của từng người ở mọi nhóm; lọc theo 7/30/90 ngày, theo nhóm, xuất CSV. Quản trị viên là người đăng nhập Google/Facebook bằng email nằm trong biến `ADMIN_EMAILS` của API. Quản trị viên có quyền trưởng nhóm ở mọi nhóm, và có thêm **công cụ thử nghiệm** trong tab Quản trị để cấp phần thưởng công trình (chọn hạng, số lượng, mạ vàng) cho bất kỳ thành viên nào.
 
 ## Kiến trúc
 
@@ -27,7 +27,7 @@ legacy/          Bản cũ một file HTML (tham khảo, có thể xóa)
 - giữ giờ bắt đầu phiên và từ chối hoàn thành trước khi hết thời gian cam kết;
 - phát câu hỏi đã xáo phương án và **không bao giờ gửi đáp án** xuống trình duyệt, tự chấm đúng/sai;
 - tự tính điểm tập trung, phần thưởng, hạng công trình; kiểm tra công trình được đặt có đúng hạng phần thưởng;
-- tự tính chuỗi, hệ số nhân, vàng và gỗ; phiên thất bại đưa chuỗi về 0;
+- tự tính chuỗi và phần thưởng; phiên thất bại đưa chuỗi về 0;
 - mỗi người chỉ có một phiên đang chạy (ràng buộc trong database);
 - mỗi khi phiên kết thúc, ghi một dòng `admin_report` vào log máy chủ (tỷ lệ hoàn thành, số lần thất bại, chuỗi, tài nguyên). Phía trình duyệt, `sendDataToAdmin` trong [apps/web/src/lib/adminReport.ts](apps/web/src/lib/adminReport.ts) in cùng bản tổng hợp ra console.
 
@@ -98,13 +98,13 @@ Tất cả dưới `/api`, dữ liệu JSON, xác thực bằng header `Authoriz
 | POST | `/groups/:gid/players` `{ name, style, dailyGoal }` | Tạo nhà trong nhóm |
 | POST | `/groups/:gid/sessions` `{ act, minutes, goal, day }` | Bắt đầu phiên, nhận câu hỏi (không kèm đáp án) |
 | POST | `/sessions/:sid/checks` `{ index, choice }` | Trả lời câu kiểm tra hiện diện (`-1` là bỏ lỡ) |
-| POST | `/sessions/:sid/complete` `{ awaySec, dist, self, note, confirmed, verify }` | Hoàn thành phiên: máy chủ chấm điểm, tăng chuỗi, cộng vàng và gỗ |
+| POST | `/sessions/:sid/complete` `{ awaySec, dist, self, note, confirmed, verify }` | Hoàn thành phiên: máy chủ chấm điểm, tăng chuỗi, cấp phần thưởng công trình |
 | POST | `/sessions/:sid/quit` `{ reason, awaySec, dist }` | Thất bại (bỏ cuộc, `violation` khi rời màn hình): chuỗi về 0 |
 | POST | `/groups/:gid/plot` `{ item, slot }` | Đặt phần thưởng lên bản đồ |
 | GET | `/groups/:gid/players/:pid/sessions` | Nhật ký phiên (chủ nhân hoặc trưởng nhóm) |
 | GET / POST / DELETE | `/groups/:gid/questions[/:qid]` | Ngân hàng câu hỏi của nhóm (trưởng nhóm) |
 | GET | `/admin/report[?days=30]` | Báo cáo tỷ lệ hoàn thành và bỏ cuộc của từng người ở mọi nhóm (quản trị viên ứng dụng) |
-| POST | `/groups/:gid/players/:pid/grant` `{ gold, wood, rewards: { tier, count, shiny } }` | Công cụ thử nghiệm: cộng/trừ vàng, gỗ, cấp phần thưởng công trình (quản trị viên ứng dụng) |
+| POST | `/groups/:gid/players/:pid/grant` `{ rewards: { tier, count, shiny } }` | Công cụ thử nghiệm: cấp phần thưởng công trình (quản trị viên ứng dụng) |
 
 ## Triển khai
 

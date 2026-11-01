@@ -90,7 +90,7 @@ describe('giao diện + API', () => {
     for (const n of [/Đọc sách giấy/, /Học sâu trên máy/, /Viết và suy ngẫm/, /Vận động/, /Chăm cây/]) expect(btn(n)).toBeTruthy();
     fireEvent.click(btn(/Đọc sách giấy/));
     expect(btn(/Cam kết 25 phút và bắt đầu/)).toBeTruthy();
-    expect(screen.getByText('0 phiên')).toBeTruthy();
+    await screen.findByText('Hoàn thành phiên này để nâng chuỗi lên 1 và nhận một công trình. Một phiên thất bại sẽ đưa chuỗi về 0.');
     fireEvent.click(btn(/Học sâu trên máy/));
     fireEvent.click(btn('5 phút'));
     const begin = btn(/Vào toàn màn hình và bắt đầu 5 phút/);
@@ -123,8 +123,8 @@ describe('giao diện + API', () => {
     fireEvent.click(finish);
 
     await find('Hoàn thành 5 phút');
-    await find('+50 vàng');
-    await find('+50 gỗ');
+    expect(screen.queryByText(/vàng$/)).toBeNull();
+    await find('Chuỗi 1 phiên');
     expect(logSpy).toHaveBeenCalledWith('[sendDataToAdmin]', expect.objectContaining({ taskStatus: 'success', totalTasks: 1, successTasks: 1, completionRate: 100, currentStreak: 1 }));
     await find('Chọn một công trình');
     fireEvent.click(btn(/Cây xanh/));
@@ -136,12 +136,13 @@ describe('giao diện + API', () => {
     await waitFor(() => expect(screen.getByText('1 / 35')).toBeTruthy());
     expect(screen.getByText('5 phút')).toBeTruthy();
     const res = () => within(screen.getByLabelText('Tài nguyên'));
-    expect(res().getAllByText('50')).toHaveLength(2);
     expect(res().getByText('1 / 0 (100%)')).toBeTruthy();
+    expect(res().queryByText('Vàng')).toBeNull();
+    expect(res().queryByText('Gỗ')).toBeNull();
 
     // Phiên thứ hai: click ra ngoài cửa sổ quá 3 giây → thất bại, chuỗi về 0.
     fireEvent.click(tab('Tập trung'));
-    await find('1 phiên');
+    await find('Hoàn thành phiên này để nâng chuỗi lên 2 và nhận một công trình. Một phiên thất bại sẽ đưa chuỗi về 0.');
     fireEvent.click(btn('5 phút'));
     screen.getAllByRole('checkbox').forEach((c) => fireEvent.click(c));
     fireEvent.click(btn(/Vào toàn màn hình và bắt đầu 5 phút/));
@@ -241,12 +242,11 @@ describe('giao diện + API', () => {
     await find('Rời màn hình quá 3 giây');
 
     // Công cụ cấp phát: cấp cho An.
-    await find('Công cụ thử nghiệm: cấp vàng, gỗ và công trình');
+    await find('Công cụ thử nghiệm: cấp công trình');
     const who = screen.getByLabelText('Người nhận') as HTMLSelectElement;
     fireEvent.change(who, { target: { value: [...who.options].find((o) => o.text === 'An')!.value } });
-    fireEvent.click(screen.getAllByRole('button', { name: '+1.000' })[0]);
     fireEvent.click(btn('Cấp cho An'));
-    await find(/Đã cấp cho An: hiện có 1\.050 vàng, 50 gỗ, 3 phần thưởng đang chờ/);
+    await find('Đã cấp 3 phần thưởng cho An: hiện có 3 phần thưởng đang chờ.');
 
     // Tự tạo nhà, cấp cho chính mình 1 phần thưởng hạng Hiếm rồi đặt Tháp quan sát từ kho.
     fireEvent.click(tab('Thành phố'));

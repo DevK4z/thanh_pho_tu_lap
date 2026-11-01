@@ -24,7 +24,7 @@ export function reportRoutes(app: FastifyInstance, { db, requireUser, isAdmin }:
     const rows = await db
       .select({
         playerId: players.id, name: players.name, groupId: groups.id, groupName: groups.name, provider: users.provider, email: users.email,
-        currentStreak: players.currentStreak, bestStreak: players.bestStreak, gold: players.gold, wood: players.wood,
+        currentStreak: players.currentStreak, bestStreak: players.bestStreak,
         createdAt: players.createdAt, lastAt: players.lastAt,
         registered: count(), done: count('done'), failed: count('quit'), active: count('active'),
         plannedSec: sql<number>`coalesce(sum(${s.plannedSec}) filter (where ${s.status} <> 'active'), 0)::int`,
@@ -44,7 +44,7 @@ export function reportRoutes(app: FastifyInstance, { db, requireUser, isAdmin }:
         registered: r.registered, done: r.done, failed: r.failed, active: r.active,
         completionRate: rate(r.done, ended), quitRate: rate(r.failed, ended),
         plannedMin: Math.round(r.plannedSec / 60), doneMin: Math.round(r.doneSec / 60), timeRate: rate(r.doneSec, r.plannedSec),
-        currentStreak: r.currentStreak, bestStreak: r.bestStreak, gold: r.gold, wood: r.wood,
+        currentStreak: r.currentStreak, bestStreak: r.bestStreak,
         createdAt: r.createdAt.getTime(), lastAt: r.lastAt ? r.lastAt.getTime() : null,
       };
     });

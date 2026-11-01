@@ -12,9 +12,9 @@ const PROVIDER = { google: 'Google', facebook: 'Facebook', guest: 'Khách' } as 
 type SortKey = 'group' | 'completion' | 'quit' | 'registered';
 
 function exportCSV(r: Report) {
-  const head = ['Tên', 'Nhóm', 'Đăng nhập', 'Email', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Đang chạy', 'Tỷ lệ hoàn thành', 'Tỷ lệ bỏ cuộc', 'Phút đăng ký', 'Phút hoàn thành', 'Tỷ lệ thời gian', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Vàng', 'Gỗ', 'Ngày tham gia', 'Hoạt động gần nhất'];
+  const head = ['Tên', 'Nhóm', 'Đăng nhập', 'Email', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Đang chạy', 'Tỷ lệ hoàn thành', 'Tỷ lệ bỏ cuộc', 'Phút đăng ký', 'Phút hoàn thành', 'Tỷ lệ thời gian', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Ngày tham gia', 'Hoạt động gần nhất'];
   const p = (v: number | null) => (v == null ? '' : Math.round(v * 1000) / 10 + '%');
-  const rows = r.rows.map((x) => [x.name, x.groupName, PROVIDER[x.provider], x.email ?? '', x.registered, x.done, x.failed, x.active, p(x.completionRate), p(x.quitRate), x.plannedMin, x.doneMin, p(x.timeRate), x.currentStreak, x.bestStreak, x.gold, x.wood, dkey(x.createdAt), x.lastAt ? dkey(x.lastAt) : '']);
+  const rows = r.rows.map((x) => [x.name, x.groupName, PROVIDER[x.provider], x.email ?? '', x.registered, x.done, x.failed, x.active, p(x.completionRate), p(x.quitRate), x.plannedMin, x.doneMin, p(x.timeRate), x.currentStreak, x.bestStreak, dkey(x.createdAt), x.lastAt ? dkey(x.lastAt) : '']);
   const csv = '﻿' + [head, ...rows].map((row) => row.map((c) => { const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));

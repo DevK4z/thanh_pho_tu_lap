@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { HST, ITEMS, SLOTS, TIERS, dkey, emptyDay, keysBack, levelOf, metrics, popOf, streakMultiplier, streakOf, sumDays, type GroupDetail, type Player } from '@tptl/shared';
+import { HST, ITEMS, SLOTS, TIERS, dkey, emptyDay, keysBack, levelOf, metrics, popOf, streakOf, sumDays, type GroupDetail, type Player } from '@tptl/shared';
 import { Icon, type IconName } from '../components/Icons';
 import { CityView } from '../components/CityView';
 import { City, House, ItemArt } from '../components/Svg';
 import { Banner, Button, Meter, Modal } from '../components/ui';
 import { fmtMin, num, pct } from '../lib/format';
 import type { Tab } from './GroupApp';
-
-const vi = (n: number) => n.toLocaleString('vi-VN');
 
 export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDetail; player: Player; onTab: (t: Tab) => void; onReward: () => void }) {
   const [visit, setVisit] = useState<Player | null>(null);
@@ -22,10 +20,8 @@ export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDet
     ['focus', 'Tập trung sâu', num(m.focus)], ['ok', 'Cam kết', pct(m.comp)],
   ];
   const total = me.tasksDone + me.tasksFailed;
-  const mult = streakMultiplier(me.currentStreak);
   const resources: [IconName, string, string][] = [
-    ['gold', 'Vàng', vi(me.gold)], ['wood', 'Gỗ', vi(me.wood)],
-    ['fire', 'Chuỗi phiên', me.currentStreak + (mult > 1 ? ` · ×${String(mult).replace('.', ',')}` : '')],
+    ['fire', 'Chuỗi phiên', String(me.currentStreak)],
     ['shield', 'Thành công / thất bại', `${me.tasksDone} / ${me.tasksFailed}` + (total ? ` (${Math.round((100 * me.tasksDone) / total)}%)` : '')],
   ];
   const built = new Map<string, number>();
