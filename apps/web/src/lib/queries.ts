@@ -1,6 +1,6 @@
 /* Hook dữ liệu. Mỗi màn hình đọc qua đây thay vì gọi fetch trực tiếp. */
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { GroupDetail, GroupQuestion, GroupSummary, Me, Player, PublicConfig, SessionLog } from '@tptl/shared';
+import type { GroupDetail, GroupQuestion, GroupSummary, Me, Player, PublicConfig, RankRange, Ranking, SessionLog } from '@tptl/shared';
 import { api, ApiError, setToken } from './api';
 
 export const qk = {
@@ -10,6 +10,7 @@ export const qk = {
   group: (gid: string) => ['group', gid] as const,
   logs: (gid: string, pid: string) => ['logs', gid, pid] as const,
   questions: (gid: string) => ['questions', gid] as const,
+  ranking: (range: string) => ['ranking', range] as const,
 };
 
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api<PublicConfig>('GET', '/config'), staleTime: Infinity, retry: 1 });
@@ -79,3 +80,7 @@ export function useGroupMembership() {
     leave: useMutation({ mutationFn: () => api<Me>('POST', '/me/leave-group'), onSuccess: done }),
   };
 }
+
+/** Bảng điểm nhóm và xếp hạng; làm mới định kỳ để thấy điểm mới khi có người hoàn thành phiên. */
+export const useRanking = (range: RankRange) =>
+  useQuery({ queryKey: qk.ranking(range), queryFn: () => api<Ranking>('GET', '/ranking?range=' + range), refetchInterval: 30_000 });

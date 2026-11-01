@@ -13,6 +13,7 @@ import { groupRoutes } from './routes/groups';
 import { sessionRoutes } from './routes/sessions';
 import { adminRoutes } from './routes/admin';
 import { reportRoutes } from './routes/report';
+import { rankingRoutes } from './routes/ranking';
 import type { Me } from '@tptl/shared';
 
 export type User = typeof users.$inferSelect;
@@ -103,6 +104,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     sessionRoutes(api, ctx);
     adminRoutes(api, ctx);
     reportRoutes(api, ctx);
+    rankingRoutes(api, ctx);
   }, { prefix: '/api' });
 
   return app;

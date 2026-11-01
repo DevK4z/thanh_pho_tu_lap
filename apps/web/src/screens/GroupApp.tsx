@@ -14,10 +14,11 @@ import { FocusVerify } from './FocusVerify';
 import { GroupBoard } from './GroupBoard';
 import { Mine } from './Mine';
 import { Onboard } from './Onboard';
+import { Ranking } from './Ranking';
 import { Reward } from './Reward';
 import { Town } from './Town';
 
-export type Tab = 'town' | 'focus' | 'mine' | 'group' | 'admin';
+export type Tab = 'town' | 'focus' | 'mine' | 'group' | 'rank' | 'admin';
 /** Luồng phiên tập trung: đang chạy → xác nhận → nhận thưởng, hoặc đang chạy → thất bại. */
 export type Flow =
   | { step: 'run'; s: ActiveSession }
@@ -79,7 +80,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   }
   if (!d) return <Layout who={who}><Card><Muted>Đang tải dữ liệu nhóm…</Muted></Card></Layout>;
 
-  const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['mine', 'Của tôi'], ['group', 'Nhóm']];
+  const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['mine', 'Của tôi'], ['group', 'Nhóm'], ['rank', 'Xếp hạng']];
   if (d.canManage) tabs.push(['admin', 'Quản trị']);
   const current: Tab = inFlow || flow?.step === 'failed' ? 'focus' : flow?.step === 'reward' ? 'town' : tab;
   function go(t: Tab) {
@@ -106,7 +107,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     body = <FocusVerify me={me} s={flow.s} m={flow.m} onDone={async (result) => { await refresh(); setFlow({ step: 'reward', result }); }} />;
   } else if (flow?.step === 'failed') {
     body = <FocusFailed info={flow.info} onRetry={() => { setFlow(null); setTab('focus'); }} onTown={() => { setFlow(null); setTab('town'); }} />;
-  } else if (!player && current !== 'group' && !(current === 'admin' && d.canManage)) {
+  } else if (!player && current !== 'group' && current !== 'rank' && !(current === 'admin' && d.canManage)) {
     // Chưa có nhà thì tạo nhà trước; riêng bảng nhóm và tab Quản trị vẫn mở được (trưởng nhóm, quản trị viên chưa chơi).
     body = <Onboard gid={gid} defaultName={me.name} onCreated={() => setTab('town')} />;
   } else if (flow?.step === 'reward' && player && player.pending.length) {
@@ -119,6 +120,8 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     body = <Mine gid={gid} player={player} onTab={go} />;
   } else if (current === 'admin' && d.canManage) {
     body = <Admin gid={gid} detail={d} isAppAdmin={me.isAdmin} onOpenReward={() => setFlow({ step: 'reward', result: null })} />;
+  } else if (current === 'rank') {
+    body = <Ranking meId={d.meId} />;
   } else {
     body = <GroupBoard detail={d} />;
   }

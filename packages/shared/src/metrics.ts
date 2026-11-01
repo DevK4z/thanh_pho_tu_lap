@@ -123,3 +123,9 @@ export function popOf(plot: PlotItem[] | undefined): number {
 export function wordCount(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
 }
+
+/** Điểm nhóm: 1 điểm cho mỗi phút tập trung hoàn thành, cộng 10 điểm cho mỗi phiên hoàn thành. */
+export const POINTS_PER_SESSION = 10;
+export function pointsOf(minutes: number, sessions: number): number {
+  return Math.round(minutes + POINTS_PER_SESSION * sessions);
+}
