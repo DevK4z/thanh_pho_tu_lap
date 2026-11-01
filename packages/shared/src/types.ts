@@ -168,3 +168,36 @@ export interface AdminReport {
   rows: AdminReportRow[];
   totals: { players: number; groups: number; registered: number; done: number; failed: number; active: number; completionRate: number | null; quitRate: number | null };
 }
+
+/** Kỳ tính điểm của bảng xếp hạng. */
+export type RankRange = 'week' | 'all';
+export interface RankGroup {
+  id: string;
+  name: string;
+  rank: number;
+  members: number;
+  /** Số thành viên có điểm trong kỳ. */
+  contributors: number;
+  points: number;
+  minutes: number;
+  sessions: number;
+  /** Điểm trung bình mỗi thành viên (để so các nhóm khác quy mô). */
+  perMember: number;
+}
+export interface RankContribution {
+  playerId: string;
+  name: string;
+  points: number;
+  minutes: number;
+  sessions: number;
+  /** Phần trăm đóng góp vào điểm của nhóm (0–100), null khi nhóm chưa có điểm. */
+  share: number | null;
+}
+export interface Ranking {
+  range: RankRange;
+  generatedAt: number;
+  groups: RankGroup[];
+  /** Nhóm của người xem (null khi chưa ở nhóm nào) và phần đóng góp của từng thành viên trong nhóm đó. */
+  myGroupId: string | null;
+  contributions: RankContribution[];
+}

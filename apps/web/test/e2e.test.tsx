@@ -162,6 +162,14 @@ describe('giao diện + API', () => {
     await waitFor(() => expect(res().getByText('1 / 1 (50%)')).toBeTruthy());
     logSpy.mockRestore();
 
+    // Dashboard điểm: 5 phút + 10 điểm cho phiên hoàn thành = 15 điểm, một mình đóng góp 100%.
+    fireEvent.click(tab('Xếp hạng'));
+    await find('Tổng điểm nhóm Lớp 10A1');
+    await find('#1');
+    expect(screen.getByText('100%')).toBeTruthy();
+    expect(screen.getAllByText(/15 điểm/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Lớp 10A1 (nhóm bạn)')).toBeTruthy();
+
     // Trưởng nhóm thường có tab Quản trị nhưng không có công cụ cấp phát.
     fireEvent.click(tab('Quản trị'));
     await find('Quản trị nhóm Lớp 10A1');
