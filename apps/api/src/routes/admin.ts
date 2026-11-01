@@ -42,30 +42,22 @@ export function adminRoutes(app: FastifyInstance, { db, requireUser, isAdmin }: 
     return reply.status(201).send(toQ(q));
   });
 
-  /** Công cụ thử nghiệm của quản trị viên ứng dụng: cộng/trừ vàng, gỗ và cấp phần thưởng công trình cho một thành viên. */
+  /** Công cụ thử nghiệm của quản trị viên ứng dụng: cấp phần thưởng công trình cho một thành viên. */
   app.post('/groups/:gid/players/:pid/grant', async (req): Promise<GrantResult> => {
     const u = await requireUser(req);
     const { gid, pid } = parse(uuidParam('gid', 'pid'), req.params);
-    if (!isAdmin(u)) throw new HttpError(403, 'admin_only', 'Chỉ quản trị viên ứng dụng cấp được vàng, gỗ và công trình.');
+    if (!isAdmin(u)) throw new HttpError(403, 'admin_only', 'Chỉ quản trị viên ứng dụng cấp được phần thưởng công trình.');
     await requireMember(db, u, gid, true);
     const body = parse(z.object({
-      gold: z.number().int().min(-1_000_000).max(1_000_000).default(0),
-      wood: z.number().int().min(-1_000_000).max(1_000_000).default(0),
-      rewards: z.object({ tier: z.number().int().min(1).max(TIERS.length), count: z.number().int().min(1).max(20), shiny: z.boolean().default(false) }).optional(),
-    }).refine((b) => b.gold || b.wood || b.rewards, 'cần cấp ít nhất một thứ'), req.body);
+      rewards: z.object({ tier: z.number().int().min(1).max(TIERS.length), count: z.number().int().min(1).max(20), shiny: z.boolean().default(false) }),
+    }), req.body);
     const r = await db.transaction(async (tx) => {
       const [p] = await tx.select().from(players).where(and(eq(players.id, pid), eq(players.groupId, gid))).for('update');
       if (!p) throw new HttpError(404, 'player_not_found', 'Không tìm thấy thành viên.');
-      const tier = body.rewards ? TIERS[body.rewards.tier - 1] : null;
-      const extra: PendingReward[] = body.rewards
-        ? Array.from({ length: body.rewards.count }, () => ({ sid: 'admin-' + randomUUID(), t: tier!.t, g: body.rewards!.shiny ? 1 : 0, m: tier!.min, a: 'deep' }))
-        : [];
-      const [np] = await tx.update(players).set({
-        gold: Math.max(0, p.gold + body.gold),
-        wood: Math.max(0, p.wood + body.wood),
-        pending: p.pending.concat(extra),
-      }).where(eq(players.id, p.id)).returning();
-      return { name: np.name, gold: np.gold, wood: np.wood, pending: np.pending.length };
+      const tier = TIERS[body.rewards.tier - 1];
+      const extra: PendingReward[] = Array.from({ length: body.rewards.count }, () => ({ sid: 'admin-' + randomUUID(), t: tier.t, g: body.rewards.shiny ? 1 : 0, m: tier.min, a: 'deep' }));
+      const [np] = await tx.update(players).set({ pending: p.pending.concat(extra) }).where(eq(players.id, p.id)).returning();
+      return { name: np.name, pending: np.pending.length };
     });
     req.log.info({ adminGrant: { adminId: u.id, groupId: gid, playerId: pid, ...body, after: r } }, 'admin_grant');
     return r;

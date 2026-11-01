@@ -15,8 +15,6 @@ export interface AdminReport {
   /** Tỷ lệ hoàn thành (%), null khi chưa có nhiệm vụ nào. */
   completionRate: number | null;
   currentStreak: number;
-  gold: number;
-  wood: number;
 }
 
 export function sendDataToAdmin(userId: string, taskStatus: TaskStatus, stats: TaskStats): AdminReport {
@@ -30,8 +28,6 @@ export function sendDataToAdmin(userId: string, taskStatus: TaskStatus, stats: T
     failedTasks: stats.tasksFailed,
     completionRate: total ? Math.round((stats.tasksDone / total) * 1000) / 10 : null,
     currentStreak: stats.currentStreak,
-    gold: stats.gold,
-    wood: stats.wood,
   };
   console.log('[sendDataToAdmin]', report);
   return report;

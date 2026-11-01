@@ -15,6 +15,13 @@
       "when": 1793439489723,
       "tag": "0001_rewards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793500023171,
+      "tag": "0002_bo-vang-go",
+      "breakpoints": true
     }
   ]
 }
