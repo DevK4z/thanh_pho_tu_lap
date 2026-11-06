@@ -10,16 +10,27 @@ import { api, errorMessage } from '../lib/api';
 import { RecallCard } from './RecallCard';
 
 const PREP = {
-  screen: [
+  fullscreen: [
     'Điện thoại đã cất xa tầm tay và tắt âm',
     'Đã đóng các tab và ứng dụng không cần cho phiên này',
     `Tôi hiểu phiên chạy toàn màn hình; đổi tab, click ra ngoài hoặc thoát toàn màn hình quá ${GRACE_SECONDS} giây là thất bại và mất chuỗi`,
   ],
-  offline: [
+  visible: [
+    'Điện thoại đang bật Không làm phiền và còn đủ pin cho cả phiên',
+    'Đã chuẩn bị đủ vật dụng cho hoạt động',
+    `Tôi hiểu phải giữ ứng dụng mở và màn hình sáng; thoát ứng dụng hoặc tắt màn hình quá ${GRACE_SECONDS} giây là thất bại và mất chuỗi`,
+  ],
+  none: [
     'Tôi sẽ chuyển điện thoại sang Không làm phiền và cất đi ngay sau khi bấm bắt đầu',
     'Đã chuẩn bị đủ vật dụng cho hoạt động',
     'Tôi hiểu rằng quay lại sớm hoặc dừng giữa chừng là thất bại và mất chuỗi',
   ],
+};
+
+const WATCH_LABEL = {
+  fullscreen: 'Trên máy · toàn màn hình, giám sát rời màn hình',
+  visible: 'Ngoài màn hình · giữ ứng dụng mở, màn hình sáng',
+  none: 'Ngoài màn hình · cất điện thoại',
 };
 
 export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid: string; player: Player; recall: RecallDue | null; onRecallDone: () => void; onStart: (s: ActiveSession) => void }) {
@@ -98,7 +109,7 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
         <Grid cols={3}>
           {ACT_KEYS.map((k) => (
             <Option key={k} pressed={act === k} onClick={() => { setAct(k); setChecks([false, false, false]); }} title={ACTS[k].n}
-              sub={ACTS[k].mode === 'screen' ? 'Trên máy · toàn màn hình, giám sát rời màn hình' : 'Ngoài màn hình · cất điện thoại'} />
+              sub={WATCH_LABEL[ACTS[k].watch]} />
           ))}
         </Grid>
         <p className="text-[13px] text-muted">{a.d}</p>
@@ -123,8 +134,11 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
       <Card>
         <h3>4. Chuẩn bị</h3>
         <div>
-          {PREP[a.mode].map((c, i) => <Check key={act + i} checked={checks[i]} onChange={(v) => setChecks((x) => x.map((y, j) => (j === i ? v : y)))}>{c}</Check>)}
+          {PREP[a.watch].map((c, i) => <Check key={act + i} checked={checks[i]} onChange={(v) => setChecks((x) => x.map((y, j) => (j === i ? v : y)))}>{c}</Check>)}
         </div>
+        {a.watch === 'visible' && !navigator.wakeLock && (
+          <Banner tone="bad">Trình duyệt này không giữ được màn hình sáng. Hãy tắt tự khóa màn hình trong cài đặt máy trước khi bắt đầu, nếu không máy tự khóa sẽ làm phiên thất bại.</Banner>
+        )}
         <div><Button variant="primary" big disabled={!ok || busy} onClick={begin}>{screenMode ? 'Vào toàn màn hình và bắt đầu' : 'Cam kết'} {min || '…'} phút{screenMode ? '' : ' và bắt đầu'}</Button></div>
       </Card>
     </section>

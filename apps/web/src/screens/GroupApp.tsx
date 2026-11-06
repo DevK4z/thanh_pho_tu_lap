@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ActiveSession, Me, SessionResult } from '@tptl/shared';
+import { ACTS, type ActiveSession, type Me, type SessionResult } from '@tptl/shared';
 import { Button, Card, Muted, useToast } from '../components/ui';
 import { Who } from '../components/Who';
 import { Layout } from '../components/Layout';
@@ -38,21 +38,23 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   const player = d?.players.find((p) => p.id === d.meId) ?? null;
   const refresh = () => qc.invalidateQueries({ queryKey: qk.group(gid) });
 
-  // Mở lại trang khi đang có phiên: phiên trên máy tính là thất bại (đã rời trang), phiên ngoài màn hình cũ chạy tiếp.
+  // Mở lại trang khi đang có phiên: phiên có giám sát là thất bại (đã rời trang), trừ khi đã tới bước xác nhận;
+  // máy yếu có thể tải lại trang lúc mở camera. Phiên không giám sát chạy tiếp.
   const resumed = useRef(false);
   useEffect(() => {
     if (!d || resumed.current) return;
     resumed.current = true;
     const a = d.active;
     if (!a || flow) return;
-    if (a.mode === 'screen') {
+    const over = Date.now() >= a.startedAt + a.plannedSec * 1000;
+    if (ACTS[a.act].watch !== 'none' && !(over && a.proof.status !== 'none')) {
       api('POST', `/sessions/${a.id}/quit`, { reason: 'closed', awaySec: 0, dist: 0 })
         .then(() => { toast('Phiên trước bị đóng giữa chừng nên được tính là thất bại.'); refresh(); })
         .catch((e) => toast(errorMessage(e)));
       return;
     }
     setTab('focus');
-    setFlow(Date.now() >= a.startedAt + a.plannedSec * 1000 ? { step: 'verify', s: a, m: { awaySec: 0, dist: 0 } } : { step: 'run', s: a });
+    setFlow(over ? { step: 'verify', s: a, m: { awaySec: 0, dist: 0 } } : { step: 'run', s: a });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d]);
 

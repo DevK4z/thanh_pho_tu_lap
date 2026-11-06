@@ -1,6 +1,7 @@
-/* Giám sát chống gian lận cho phiên trên máy.
-   Người dùng phải ở lại trang, giữ cửa sổ được chọn và ở chế độ toàn màn hình. Rời khỏi một trong ba điều đó
-   lâu hơn GRACE_SECONDS thì phiên thất bại; quay lại kịp thì chỉ ghi một cảnh báo.
+/* Giám sát chống gian lận.
+   Phiên trên máy: người dùng phải ở lại trang, giữ cửa sổ được chọn và ở chế độ toàn màn hình.
+   Phiên đọc sách, chăm cây: chỉ cần giữ ứng dụng mở và màn hình sáng (chạy được trên iPhone, không cần toàn màn hình).
+   Rời khỏi lâu hơn GRACE_SECONDS thì phiên thất bại; quay lại kịp thì chỉ ghi một cảnh báo.
 
    Nguồn sự kiện:
    - visibilitychange: đổi tab, thu nhỏ trình duyệt, khóa màn hình điện thoại.
@@ -13,7 +14,7 @@ import { GRACE_SECONDS } from '@tptl/shared';
 
 export type Cause = 'tab' | 'blur' | 'fullscreen';
 export const CAUSE_LABEL: Record<Cause, string> = {
-  tab: 'Đổi tab hoặc thu nhỏ trình duyệt',
+  tab: 'Đổi tab, thoát ứng dụng hoặc tắt màn hình',
   blur: 'Click ra ngoài cửa sổ hoặc chuyển ứng dụng',
   fullscreen: 'Thoát chế độ toàn màn hình',
 };
@@ -39,9 +40,10 @@ export function exitFullscreen() {
 
 /**
  * @param active  đang giám sát (phiên đang chạy)
+ * @param fullscreen  phải ở toàn màn hình và giữ cửa sổ được chọn; false thì chỉ xét trang có đang hiển thị không
  * @param onFail  gọi một lần khi vượt quá thời gian ân hạn; awaySec là tổng thời gian đã rời trong phiên
  */
-export function useAntiCheat(active: boolean, onFail: (cause: Cause, awaySec: number, log: Warning[]) => void) {
+export function useAntiCheat(active: boolean, fullscreen: boolean, onFail: (cause: Cause, awaySec: number, log: Warning[]) => void) {
   const [away, setAway] = useState<{ since: number; cause: Cause } | null>(null);
   const [log, setLog] = useState<Warning[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -51,7 +53,7 @@ export function useAntiCheat(active: boolean, onFail: (cause: Cause, awaySec: nu
 
   /** Lý do đang vi phạm, null nếu mọi thứ bình thường. Tab ẩn được ưu tiên vì nó kéo theo cả blur. */
   const currentCause = (): Cause | null =>
-    document.hidden ? 'tab' : !isFullscreen() ? 'fullscreen' : r.current.blurred ? 'blur' : null;
+    document.hidden ? 'tab' : !fullscreen ? null : !isFullscreen() ? 'fullscreen' : r.current.blurred ? 'blur' : null;
 
   const push = (w: Warning) => {
     r.current.log = r.current.log.concat([w]);
@@ -85,7 +87,7 @@ export function useAntiCheat(active: boolean, onFail: (cause: Cause, awaySec: nu
       x.away = null;
       setAway(null);
     }
-  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, fullscreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!active) return;

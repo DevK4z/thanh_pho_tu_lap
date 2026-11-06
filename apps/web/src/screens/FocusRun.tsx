@@ -45,8 +45,8 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
   const [reason, setReason] = useState<QuitReason | null>(null);
   const [busy, setBusy] = useState(false);
   const a = ACTS[s.act];
-  // Chỉ phiên trên máy mới giám sát; phiên ngoài màn hình cũ (nếu còn) chạy như trước.
-  const watched = s.mode === 'screen';
+  const fullscreen = a.watch === 'fullscreen';
+  const watched = a.watch !== 'none';
   const stopRun = useRef<() => void>(() => {});
 
   /** Gửi kết quả thất bại lên máy chủ rồi chuyển sang màn thất bại. */
@@ -65,7 +65,7 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
     }
   }
 
-  const ac = useAntiCheat(watched && !ended, (cause, awaySec, log) => {
+  const ac = useAntiCheat(watched && !ended, fullscreen, (cause, awaySec, log) => {
     toast('Bạn đã mất tập trung!');
     fail({ kind: 'violation', cause, log }, { awaySec, dist: log.length });
   });
@@ -100,8 +100,13 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
       </div>
       {watched ? (
         <div className="flex w-full max-w-xl flex-col gap-3">
-          <p className="text-muted">Giữ trang này ở chế độ toàn màn hình. Đổi tab, click ra ngoài hoặc thoát toàn màn hình quá {GRACE_SECONDS} giây là phiên thất bại và mất chuỗi.</p>
-          <Stat3 items={[[ac.log.length, 'cảnh báo'], [run.qc + '/' + run.qa, 'câu kiểm tra đúng'], [ac.measures().awaySec.toFixed(1) + ' giây', 'đã rời màn hình']]} />
+          {!fullscreen && !run.awake && (
+            <Banner tone="bad" className="text-left">Máy này không giữ được màn hình sáng. Hãy tắt tự khóa màn hình trong cài đặt, nếu không máy tự khóa sẽ làm phiên thất bại.</Banner>
+          )}
+          {fullscreen ? <p className="text-muted">Giữ trang này ở chế độ toàn màn hình. Đổi tab, click ra ngoài hoặc thoát toàn màn hình quá {GRACE_SECONDS} giây là phiên thất bại và mất chuỗi.</p> : (
+            <p className="text-muted"><b>Giữ ứng dụng mở và úp điện thoại xuống.</b> Thoát ứng dụng hoặc tắt màn hình quá {GRACE_SECONDS} giây là phiên thất bại và mất chuỗi.</p>
+          )}
+          <Stat3 items={[[ac.log.length, 'cảnh báo'], fullscreen ? [run.qc + '/' + run.qa, 'câu kiểm tra đúng'] : [hm(s.startedAt + s.plannedSec * 1000), 'hết giờ lúc'], [ac.measures().awaySec.toFixed(1) + ' giây', 'đã rời màn hình']]} />
           <div>
             <Eyebrow className="mb-1.5 text-left">Nhật ký cảnh báo</Eyebrow>
             <WarningLog log={ac.log} />

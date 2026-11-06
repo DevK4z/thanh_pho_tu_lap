@@ -55,6 +55,8 @@ export function useFocusRun(s: ActiveSession, onFinish: () => void, toast: (m: s
       const x = st.current;
       if (x.done) return;
       if (t >= endAt) {
+        // Đang rời đi thì chưa kết thúc: để giám sát quyết định, tránh rời đến hết giờ rồi quay lại vẫn qua.
+        if (cb.current.isAway()) return;
         x.done = true;
         openCheck(null);
         cb.current.onFinish();
@@ -72,16 +74,33 @@ export function useFocusRun(s: ActiveSession, onFinish: () => void, toast: (m: s
     return () => clearInterval(id);
   }, [s.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Giữ màn hình sáng trong lúc chạy phiên (nếu trình duyệt hỗ trợ).
+  // Giữ màn hình sáng trong lúc chạy phiên. Trình duyệt tự nhả khóa khi trang bị ẩn nên phải xin lại lúc quay về.
+  const [awake, setAwake] = useState(true);
   useEffect(() => {
     let lock: WakeLockSentinel | null = null;
-    navigator.wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => {});
-    return () => { lock?.release().catch(() => {}); };
+    let stopped = false;
+    const hold = () => {
+      if (document.hidden) return;
+      if (!navigator.wakeLock) { setAwake(false); return; }
+      navigator.wakeLock.request('screen').then((l) => {
+        if (stopped) l.release().catch(() => {});
+        else { lock = l; setAwake(true); }
+      }).catch(() => setAwake(false));
+    };
+    hold();
+    document.addEventListener('visibilitychange', hold);
+    return () => {
+      stopped = true;
+      document.removeEventListener('visibilitychange', hold);
+      lock?.release().catch(() => {});
+    };
   }, [s.id]);
 
   const x = st.current;
   return {
     left: Math.max(0, Math.ceil((endAt - now) / 1000)),
+    /** false: máy không giữ được màn hình sáng, có thể tự khóa giữa phiên. */
+    awake,
     qa: x.qa,
     qc: x.qc,
     check,

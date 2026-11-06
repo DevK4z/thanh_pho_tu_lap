@@ -6,6 +6,8 @@ export type Mode = 'screen' | 'offline';
 export interface Activity {
   n: string;
   mode: Mode;
+  /** Cách giám sát: toàn màn hình; giữ ứng dụng mở và màn hình sáng; không giám sát (cất máy đi). */
+  watch: Watch;
   /** Mô tả ngắn hiển thị khi chọn hoạt động. */
   d: string;
   /** Nhãn ô mục tiêu và gợi ý. */
@@ -15,12 +17,14 @@ export interface Activity {
   needNote: boolean;
 }
 
+export type Watch = 'fullscreen' | 'visible' | 'none';
+
 export const ACTS: Record<ActKey, Activity> = {
-  read: { n: 'Đọc sách giấy', mode: 'offline', d: 'Cất điện thoại, đọc sách giấy. Quay lại khi hết giờ để trả lời câu hỏi xác nhận.', gl: 'Sách và phần sẽ đọc', ph: 'Tên sách, chương hoặc số trang', needNote: true },
-  deep: { n: 'Học sâu trên máy', mode: 'screen', d: 'Học hoặc làm bài trên máy tính. Rời trang sẽ được ghi nhận là xao nhãng.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
-  write: { n: 'Viết và suy ngẫm', mode: 'screen', d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
-  move: { n: 'Vận động', mode: 'offline', d: 'Chạy bộ, tập thể dục, đạp xe. Cất điện thoại và quay lại khi hết giờ.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
-  plant: { n: 'Chăm cây', mode: 'offline', d: 'Trồng, tưới, tỉa cây. Cất điện thoại và quay lại khi hết giờ.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
+  read: { n: 'Đọc sách giấy', mode: 'offline', watch: 'visible', d: 'Giữ ứng dụng mở, úp điện thoại xuống và đọc sách giấy. Hết giờ trả lời câu hỏi xác nhận.', gl: 'Sách và phần sẽ đọc', ph: 'Tên sách, chương hoặc số trang', needNote: true },
+  deep: { n: 'Học sâu trên máy', mode: 'screen', watch: 'fullscreen', d: 'Học hoặc làm bài trên máy tính. Rời trang sẽ được ghi nhận là xao nhãng.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
+  write: { n: 'Viết và suy ngẫm', mode: 'screen', watch: 'fullscreen', d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
+  move: { n: 'Vận động', mode: 'offline', watch: 'none', d: 'Chạy bộ, tập thể dục, đạp xe. Cất điện thoại và quay lại khi hết giờ.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
+  plant: { n: 'Chăm cây', mode: 'offline', watch: 'visible', d: 'Trồng, tưới, tỉa cây. Giữ ứng dụng mở, đặt điện thoại gần đó cho đến khi hết giờ.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
 };
 export const ACT_KEYS: ActKey[] = ['read', 'deep', 'write', 'move', 'plant'];
 
