@@ -1,10 +1,10 @@
 /* Phiên tập trung. Máy chủ giữ giờ bắt đầu, câu hỏi và đáp án; tự chấm điểm, tính chuỗi và cấp phần thưởng.
    Trình duyệt chỉ báo những gì nó đo được: thời gian rời trang, số lần rời trang, câu trả lời và tự đánh giá. */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  ACTS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, ACT_KEYS, DAY_RE,
+  ACTS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, ACT_KEYS, DAY_RE, VERIFY_FOCUS,
   checkCount, levelOf, scoreSession, tierFor, verifyCount, wordCount,
   type ActKey, type DayStat, type QuitResult, type SessionResult, type TaskStats,
 } from '@tptl/shared';
@@ -13,6 +13,7 @@ import type { Db } from '../db/client';
 import { dayStats, focusSessions, players, questions as questionsTable, type SessionQuestions } from '../db/schema';
 import { HttpError, parse, pgCode } from '../errors';
 import { DEFAULT_QUESTIONS, issueQuestions, publicSession, type BankQuestion } from '../questions';
+import { findRecall } from '../recall';
 import { requireMember, requirePlayer, uuidParam } from './groups';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -20,7 +21,7 @@ type SessionRow = typeof focusSessions.$inferSelect;
 type PlayerRow = typeof players.$inferSelect;
 
 /** Cộng dồn số liệu vào một ngày (tạo dòng nếu chưa có). */
-async function addDay(tx: Tx, playerId: string, day: string, inc: Partial<DayStat>) {
+export async function addDay(tx: Tx, playerId: string, day: string, inc: Partial<DayStat>) {
   const keys = (Object.keys(inc) as (keyof DayStat)[]).filter((k) => inc[k]);
   if (!keys.length) return;
   const set = Object.fromEntries(keys.map((k) => [k, sql`${dayStats[k]} + excluded.${sql.identifier(k)}`]));
@@ -33,7 +34,7 @@ export async function groupBank(db: Db | Tx, gid: string): Promise<BankQuestion[
 }
 
 /** Ngày địa phương do trình duyệt gửi phải lệch không quá ~1 ngày so với giờ máy chủ. */
-function plausibleDay(day: string, now: number) {
+export function plausibleDay(day: string, now: number) {
   const t = Date.parse(day + 'T12:00:00Z');
   return Number.isFinite(t) && Math.abs(t - now) <= 38 * 3600_000;
 }
@@ -89,6 +90,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     }), req.body);
     const now = Date.now();
     if (!plausibleDay(body.day, now)) throw new HttpError(400, 'bad_day', 'Ngày trên máy không khớp với giờ thực. Hãy kiểm tra đồng hồ của máy.');
+    if (await findRecall(db, p.id, body.day)) throw new HttpError(409, 'recall_due', 'Hãy trả lời câu hỏi nhớ lại trước khi bắt đầu phiên mới.');
     const mode = ACTS[body.act].mode;
     const plannedSec = body.minutes * 60;
     const bank = await groupBank(db, gid);
@@ -158,15 +160,22 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       const focus = scoreSession({ mode: s.mode, activeSec, awaySec, distractions: dist, missed: chk.missed, qa, qc, self: body.self });
       const minutes = Math.round(s.plannedSec / 60);
       const tier = tierFor(minutes);
-      const shiny = focus >= 85;
+      // Có ảnh khớp mã, hoặc phiên trên máy đạt điểm tập trung đủ cao. Chưa xác minh vẫn nhận công trình nhưng phút không được tính.
+      const verified = s.proofStatus === 'ok' || (s.mode === 'screen' && focus >= VERIFY_FOCUS);
+      const shiny = focus >= 85 && verified;
+      const gained = verified ? minutes : 0;
+      const hasClaim = !!(s.goal || body.note);
 
       await tx.update(focusSessions).set({
-        status: 'done', endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa, qc, focus, self: body.self, note: body.note, questions: q,
+        status: 'done', endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa, qc, focus, self: body.self, note: body.note, questions: q, verified, proofCode: null, recallDue: hasClaim,
       }).where(eq(focusSessions.id, sid));
-      await addDay(tx, p.id, s.day, { c: 1, ac: activeSec, cs: activeSec, aw: awaySec, dn: dist, ms: chk.missed, qa, qc, fs: focus, fn: 1 });
+      // Chỉ hỏi nhớ lại về phiên gần nhất.
+      if (hasClaim) await tx.update(focusSessions).set({ recallDue: false }).where(and(eq(focusSessions.playerId, p.id), eq(focusSessions.recallDue, true), ne(focusSessions.id, sid)));
+      await addDay(tx, p.id, s.day, { c: 1, ac: activeSec, cs: activeSec, aw: awaySec, dn: dist, ms: chk.missed, qa, qc, fs: focus, fn: 1, vf: verified ? 1 : 0, uv: verified ? 0 : 1 });
       const streak = p.currentStreak + 1;
       const [np] = await tx.update(players).set({
-        totalFocusMin: p.totalFocusMin + minutes,
+        totalFocusMin: p.totalFocusMin + gained,
+        unverifiedMin: p.unverifiedMin + (minutes - gained),
         pending: p.pending.concat([{ sid, t: tier, g: shiny ? 1 : 0, m: minutes, a: s.act }]),
         lastAt: new Date(now),
         currentStreak: streak,
@@ -175,7 +184,8 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       }).where(eq(players.id, p.id)).returning();
       const result: SessionResult = {
         focus, minutes, tier, shiny, qc, qa, dist, away: awaySec, missed: chk.missed, mode: s.mode,
-        prevLv: levelOf(p.totalFocusMin).lv, newLv: levelOf(p.totalFocusMin + minutes).lv,
+        prevLv: levelOf(p.totalFocusMin).lv, newLv: levelOf(p.totalFocusMin + gained).lv,
+        verified,
         stats: statsOf(np),
       };
       return { result, playerId: p.id };
@@ -184,7 +194,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     return r.result;
   });
 
-  /** Bỏ cuộc hoặc thất bại (rời màn hình, đóng trang): chuỗi về 0. */
+  /** Bỏ cuộc hoặc thất bại (rời màn hình, đóng trang): chuỗi về 0. Tự khai chưa làm đủ sau khi hết giờ thì giữ chuỗi và không trừ độ tin cậy. */
   app.post('/sessions/:sid/quit', async (req): Promise<QuitResult> => {
     const u = await requireUser(req);
     const { sid } = parse(uuidParam('sid'), req.params);
@@ -193,8 +203,10 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     const r = await db.transaction(async (tx) => {
       const { s, p } = await lockActive(tx, u, sid);
       const now = Date.now();
+      const honest = reason === 'honest';
+      if (honest && now < s.startedAt.getTime() + s.plannedSec * 1000 - 2000) throw new HttpError(409, 'too_early', 'Chưa hết thời gian cam kết.');
       // Phiên bị đóng giữa chừng không biết đã làm bao lâu nên không tính thời gian thực hiện.
-      const activeSec = reason === 'closed' ? 0 : Math.max(0, Math.min(s.plannedSec, Math.round((now - s.startedAt.getTime()) / 1000)));
+      const activeSec = honest ? Math.round(s.plannedSec / 2) : reason === 'closed' ? 0 : Math.max(0, Math.min(s.plannedSec, Math.round((now - s.startedAt.getTime()) / 1000)));
       const chk = answeredStats(s.questions);
       const awaySec = s.mode === 'screen' ? Math.round(Math.min(body.awaySec, s.plannedSec)) : 0;
       const dist = s.mode === 'screen' ? body.dist : 0;
@@ -202,9 +214,9 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       await addDay(tx, p.id, s.day, { q: 1, ac: activeSec, aw: awaySec, dn: dist, ms: chk.missed, qa: chk.qa, qc: chk.qc });
       const qr = { ...p.quitReasons, [reason]: (p.quitReasons[reason] || 0) + 1 };
       const [np] = await tx.update(players).set({
-        quitReasons: qr, lastAt: new Date(now), currentStreak: 0, tasksFailed: p.tasksFailed + 1,
+        quitReasons: qr, lastAt: new Date(now), currentStreak: honest ? p.currentStreak : 0, tasksFailed: p.tasksFailed + 1,
       }).where(eq(players.id, p.id)).returning();
-      return { playerId: p.id, out: { lostStreak: p.currentStreak, stats: statsOf(np) } };
+      return { playerId: p.id, out: { lostStreak: honest ? 0 : p.currentStreak, stats: statsOf(np) } };
     });
     reportToAdmin(req.log, u.id, r.playerId, 'failed', r.out.stats, reason);
     return r.out;

@@ -37,7 +37,7 @@ export function Ranking({ meId }: { meId: string | null }) {
               <Card>
                 <Eyebrow>Tổng điểm nhóm {mine.name}</Eyebrow>
                 <BigNumber>{mine.points}</BigNumber>
-                <p className="text-[13px] text-muted">{fmtMin(mine.minutes)} · {mine.sessions} phiên hoàn thành</p>
+                <p className="text-[13px] text-muted">{fmtMin(mine.minutes)} · {mine.sessions} phiên đã xác minh</p>
               </Card>
               <Card>
                 <Eyebrow>Thứ hạng</Eyebrow>
@@ -70,7 +70,7 @@ export function Ranking({ meId }: { meId: string | null }) {
                     </li>
                   ))}
                 </ol>
-              ) : <Muted>Chưa có ai hoàn thành phiên trong kỳ này. Điểm của nhóm bắt đầu từ phiên đầu tiên.</Muted>}
+              ) : <Muted>Chưa có phiên nào được xác minh trong kỳ này. Điểm của nhóm bắt đầu từ phiên đã xác minh đầu tiên.</Muted>}
               <p className="text-[13px] text-muted">Phần trăm đóng góp = điểm của thành viên chia cho tổng điểm nhóm trong cùng kỳ.</p>
             </Card>
           )}
@@ -99,7 +99,7 @@ export function Ranking({ meId }: { meId: string | null }) {
               </ol>
             ) : <Muted>Chưa có nhóm nào.</Muted>}
             <p className="text-[13px] text-muted">
-              Cách tính: 1 điểm mỗi phút tập trung hoàn thành, cộng {POINTS_PER_SESSION} điểm mỗi phiên hoàn thành. Phiên bỏ cuộc không có điểm. Nhóm bằng điểm thì đồng hạng.
+              Cách tính: chỉ phiên đã xác minh mới có điểm, gồm 1 điểm mỗi phút cộng {POINTS_PER_SESSION} điểm mỗi phiên. Phiên chưa xác minh, phiên bỏ cuộc và phiên kiểm tra trực tiếp không khớp không có điểm. Nhóm bằng điểm thì đồng hạng.
             </p>
           </Card>
         </>

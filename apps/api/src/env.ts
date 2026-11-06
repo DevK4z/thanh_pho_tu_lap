@@ -12,6 +12,9 @@ const schema = z.object({
   FACEBOOK_APP_SECRET: z.string().optional().transform((v) => v || undefined),
   /** Email quản trị viên của ứng dụng, cách nhau bằng dấu phẩy. Đăng nhập bằng Google với email này sẽ xem được báo cáo mọi nhóm. */
   ADMIN_EMAILS: z.string().default('').transform((v) => new Set(v.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean))),
+  /** Khóa Gemini API để kiểm tra ảnh và câu hỏi nhớ lại. Để trống thì phiên ngoài màn hình ở trạng thái chưa xác minh. */
+  GEMINI_API_KEY: z.string().optional().transform((v) => v || undefined),
+  AI_MODEL: z.string().default('gemini-3.5-flash-lite'),
   NODE_ENV: z.string().default('development'),
 });
 export type Env = z.infer<typeof schema>;

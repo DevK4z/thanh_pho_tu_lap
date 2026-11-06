@@ -116,7 +116,7 @@ describe('giao diện + API', () => {
     expect(fsEl).toBeNull();
     const finish = btn('Hoàn thành phiên');
     expect(finish).toHaveProperty('disabled', true);
-    const question = screen.getAllByRole('heading', { level: 3 })[0].closest('div')!;
+    const question = screen.getAllByRole('heading', { level: 3 })[1].closest('div')!;
     fireEvent.click(within(question).getAllByRole('button')[0]);
     fireEvent.click(btn('5'));
     expect(finish).toHaveProperty('disabled', false);
@@ -173,6 +173,10 @@ describe('giao diện + API', () => {
     // Trưởng nhóm thường có tab Quản trị nhưng không có công cụ cấp phát.
     fireEvent.click(tab('Quản trị'));
     await find('Quản trị nhóm Lớp 10A1');
+    // Kiểm tra trực tiếp: trưởng nhóm không thấy phiên được bốc của chính mình.
+    await find('Chưa bốc thăm lần nào.');
+    fireEvent.click(btn('Bốc thăm tuần này'));
+    await find('Phiên của bạn do trưởng nhóm hoặc quản trị viên khác kiểm tra.');
     expect(screen.queryByText(/Công cụ thử nghiệm/)).toBeNull();
 
     fireEvent.click(tab('Của tôi'));

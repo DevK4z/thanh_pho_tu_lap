@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import {
   ACTS, ACT_KEYS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, TIERS,
-  dkey, tierFor, type ActKey, type ActiveSession, type Player,
+  dkey, tierFor, type ActKey, type ActiveSession, type Player, type RecallDue,
 } from '@tptl/shared';
 import { Icon } from '../components/Icons';
 import { Banner, Button, Card, Check, Chip, Eyebrow, Field, Grid, inputCls, Option, useToast } from '../components/ui';
 import { enterFullscreen, exitFullscreen, fullscreenSupported } from '../focus/useAntiCheat';
 import { api, errorMessage } from '../lib/api';
+import { RecallCard } from './RecallCard';
 
 const PREP = {
   screen: [
@@ -21,7 +22,7 @@ const PREP = {
   ],
 };
 
-export function FocusSetup({ gid, player, onStart }: { gid: string; player: Player; onStart: (s: ActiveSession) => void }) {
+export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid: string; player: Player; recall: RecallDue | null; onRecallDone: () => void; onStart: (s: ActiveSession) => void }) {
   const toast = useToast();
   const [act, setAct] = useState<ActKey>('deep');
   const [dur, setDur] = useState<number | ''>(25);
@@ -57,6 +58,15 @@ export function FocusSetup({ gid, player, onStart }: { gid: string; player: Play
       toast(errorMessage(e));
       setBusy(false);
     }
+  }
+
+  if (recall) {
+    return (
+      <section className="flex flex-col gap-3.5">
+        <div><Eyebrow>Đăng ký phiên</Eyebrow><h2>Trả lời câu hỏi trước đã</h2></div>
+        <RecallCard key={recall.sid} recall={recall} onDone={onRecallDone} />
+      </section>
+    );
   }
 
   return (

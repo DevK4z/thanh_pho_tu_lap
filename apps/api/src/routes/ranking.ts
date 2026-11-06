@@ -1,10 +1,10 @@
-/* Bảng điểm nhóm và xếp hạng giữa các nhóm. Điểm lấy từ day_stats (phút và số phiên hoàn thành), tính ngay khi mỗi phiên kết thúc. */
-import { eq, gte, sql } from 'drizzle-orm';
+/* Bảng điểm nhóm và xếp hạng giữa các nhóm. Chỉ phiên đã xác minh và không bị kiểm tra trực tiếp bác mới có điểm. */
+import { eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { POINTS_PER_SESSION, dkey, pointsOf, type RankContribution, type RankGroup, type Ranking } from '@tptl/shared';
 import type { Ctx } from '../app';
-import { dayStats, groups, players } from '../db/schema';
+import { focusSessions, groups, players } from '../db/schema';
 import { parse } from '../errors';
 
 export function rankingRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
@@ -13,15 +13,17 @@ export function rankingRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     const { range } = parse(z.object({ range: z.enum(['week', 'all']).default('week') }), req.query);
 
     // Mỗi thành viên một dòng, kể cả người chưa có điểm (left join) để biết quy mô nhóm.
-    const joinOn = range === 'week' ? sql`${dayStats.playerId} = ${players.id} and ${dayStats.day} >= ${dkey(Date.now() - 6 * 86400000)}` : eq(dayStats.playerId, players.id);
+    const f = focusSessions;
+    const scored = sql`${f.playerId} = ${players.id} and ${f.status} = 'done' and ${f.verified} and ${f.spotResult} is distinct from 'no'`;
+    const joinOn = range === 'week' ? sql`${scored} and ${f.day} >= ${dkey(Date.now() - 6 * 86400000)}` : scored;
     const rows = await db
       .select({
         playerId: players.id, name: players.name, groupId: groups.id, groupName: groups.name,
-        cs: sql<number>`coalesce(sum(${dayStats.cs}), 0)::int`, c: sql<number>`coalesce(sum(${dayStats.c}), 0)::int`,
+        cs: sql<number>`coalesce(sum(${f.activeSec}), 0)::int`, c: sql<number>`count(${f.id})::int`,
       })
       .from(players)
       .innerJoin(groups, eq(groups.id, players.groupId))
-      .leftJoin(dayStats, joinOn)
+      .leftJoin(f, joinOn)
       .groupBy(players.id, groups.id);
 
     const byGroup = new Map<string, { name: string; list: (typeof rows)[number][] }>();

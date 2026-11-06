@@ -1,6 +1,6 @@
 /* Hook dữ liệu. Mỗi màn hình đọc qua đây thay vì gọi fetch trực tiếp. */
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { GroupDetail, GroupQuestion, GroupSummary, Me, Player, PublicConfig, RankRange, Ranking, SessionLog } from '@tptl/shared';
+import { dkey, type GroupDetail, type GroupQuestion, type GroupSummary, type Me, type Player, type PublicConfig, type RankRange, type Ranking, type SessionLog, type SpotDraw } from '@tptl/shared';
 import { api, ApiError, setToken } from './api';
 
 export const qk = {
@@ -11,6 +11,7 @@ export const qk = {
   logs: (gid: string, pid: string) => ['logs', gid, pid] as const,
   questions: (gid: string) => ['questions', gid] as const,
   ranking: (range: string) => ['ranking', range] as const,
+  spot: (gid: string) => ['spot', gid] as const,
 };
 
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api<PublicConfig>('GET', '/config'), staleTime: Infinity, retry: 1 });
@@ -32,10 +33,12 @@ export const useGroups = () => useQuery({ queryKey: qk.groups, queryFn: () => ap
 
 /** Dữ liệu nhóm tự làm mới định kỳ để thấy tiến độ của các thành viên khác. */
 export const useGroup = (gid: string, live = true) =>
-  useQuery({ queryKey: qk.group(gid), queryFn: () => api<GroupDetail>('GET', '/groups/' + gid), refetchInterval: live ? 20_000 : false });
+  useQuery({ queryKey: qk.group(gid), queryFn: () => api<GroupDetail>('GET', `/groups/${gid}?day=${dkey(Date.now())}`), refetchInterval: live ? 20_000 : false });
 
 export const useLogs = (gid: string, pid: string | null) =>
   useQuery({ queryKey: qk.logs(gid, pid || ''), queryFn: () => api<SessionLog[]>('GET', `/groups/${gid}/players/${pid}/sessions`), enabled: !!pid });
+
+export const useSpot = (gid: string) => useQuery({ queryKey: qk.spot(gid), queryFn: () => api<SpotDraw>('GET', `/groups/${gid}/spot`) });
 
 export const useQuestions = (gid: string) => useQuery({ queryKey: qk.questions(gid), queryFn: () => api<GroupQuestion[]>('GET', `/groups/${gid}/questions`) });
 

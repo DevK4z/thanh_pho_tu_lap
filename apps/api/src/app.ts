@@ -14,6 +14,8 @@ import { sessionRoutes } from './routes/sessions';
 import { adminRoutes } from './routes/admin';
 import { reportRoutes } from './routes/report';
 import { rankingRoutes } from './routes/ranking';
+import { evidenceRoutes } from './routes/evidence';
+import { geminiAI, type EvidenceAI } from './ai';
 import type { Me } from '@tptl/shared';
 
 export type User = typeof users.$inferSelect;
@@ -29,6 +31,8 @@ export interface Ctx {
   db: Db;
   env: Env;
   verifiers: Verifiers;
+  /** Gemini kiểm tra bằng chứng; null khi chưa đặt GEMINI_API_KEY. */
+  ai: EvidenceAI | null;
   /** Bắt buộc đăng nhập; trả về người dùng hiện tại. */
   requireUser(req: FastifyRequest): Promise<User>;
   /** Email nằm trong ADMIN_EMAILS và không phải tài khoản khách. */
@@ -42,6 +46,8 @@ export interface AppOptions {
   env: Env;
   /** Thay bộ xác minh Google/Facebook (dùng trong test). */
   verifiers?: Verifiers;
+  /** Thay Gemini bằng bản giả (dùng trong test). */
+  ai?: EvidenceAI | null;
   logger?: boolean;
   rateLimit?: boolean;
 }
@@ -58,6 +64,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     google: env.GOOGLE_CLIENT_ID ? googleVerifier(env.GOOGLE_CLIENT_ID) : undefined,
     facebook: env.FACEBOOK_APP_ID && env.FACEBOOK_APP_SECRET ? facebookVerifier(env.FACEBOOK_APP_ID, env.FACEBOOK_APP_SECRET) : undefined,
   };
+
+  const ai = o.ai !== undefined ? o.ai : env.GEMINI_API_KEY ? geminiAI(env.GEMINI_API_KEY, env.AI_MODEL) : null;
 
   app.decorateRequest('user', null);
   app.decorateRequest('tokenHash', null);
@@ -95,7 +103,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   // Chỉ email Google đã xác minh mới được tính; tài khoản Facebook và khách không có email nên không phải admin.
   const isAdmin = (u: User) => u.provider === 'google' && !!u.email && env.ADMIN_EMAILS.has(u.email.toLowerCase());
   const toMe = (u: User): Me => ({ id: u.id, name: u.name, provider: u.provider, avatarUrl: u.avatarUrl, currentGroupId: u.currentGroupId, isAdmin: isAdmin(u) });
-  const ctx: Ctx = { db, env, verifiers, requireUser, isAdmin, toMe };
+  const ctx: Ctx = { db, env, verifiers, ai, requireUser, isAdmin, toMe };
   // commit: mã git đang chạy (Render tự đặt RENDER_GIT_COMMIT), để kiểm tra đã deploy đúng bản.
   app.get('/health', async () => ({ ok: true, commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null }));
   await app.register(async (api) => {
@@ -105,6 +113,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     adminRoutes(api, ctx);
     reportRoutes(api, ctx);
     rankingRoutes(api, ctx);
+    evidenceRoutes(api, ctx);
   }, { prefix: '/api' });
 
   return app;

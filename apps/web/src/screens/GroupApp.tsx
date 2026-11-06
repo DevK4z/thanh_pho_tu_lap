@@ -104,7 +104,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   if (flow?.step === 'run') {
     body = <FocusRun me={me} s={flow.s} onFinish={(m) => setFlow({ step: 'verify', s: flow.s, m })} onFailed={(info) => { setFlow({ step: 'failed', info }); refresh(); }} />;
   } else if (flow?.step === 'verify') {
-    body = <FocusVerify me={me} s={flow.s} m={flow.m} onDone={async (result) => { await refresh(); setFlow({ step: 'reward', result }); }} />;
+    body = <FocusVerify me={me} s={flow.s} m={flow.m} onDone={async (result) => { await refresh(); setFlow({ step: 'reward', result }); }} onHonest={async () => { await refresh(); setFlow(null); setTab('town'); }} />;
   } else if (flow?.step === 'failed') {
     body = <FocusFailed info={flow.info} onRetry={() => { setFlow(null); setTab('focus'); }} onTown={() => { setFlow(null); setTab('town'); }} />;
   } else if (!player && current !== 'group' && current !== 'rank' && !(current === 'admin' && d.canManage)) {
@@ -113,9 +113,9 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   } else if (flow?.step === 'reward' && player && player.pending.length) {
     body = <Reward gid={gid} player={player} result={flow.result} onAllPlaced={() => { setFlow(null); setTab('town'); }} />;
   } else if (current === 'town' && player) {
-    body = <Town detail={d} player={player} onTab={go} onReward={() => setFlow({ step: 'reward', result: null })} />;
+    body = <Town detail={d} player={player} onTab={go} onRecallDone={refresh} onReward={() => setFlow({ step: 'reward', result: null })} />;
   } else if (current === 'focus' && player) {
-    body = <FocusSetup gid={gid} player={player} onStart={(s) => setFlow({ step: 'run', s })} />;
+    body = <FocusSetup gid={gid} player={player} recall={d.recall} onRecallDone={refresh} onStart={(s) => setFlow({ step: 'run', s })} />;
   } else if (current === 'mine' && player) {
     body = <Mine gid={gid} player={player} onTab={go} />;
   } else if (current === 'admin' && d.canManage) {

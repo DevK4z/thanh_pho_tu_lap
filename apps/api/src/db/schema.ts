@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { type AnyPgColumn, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { ActKey, HouseStyle, Mode, PendingReward, PlotItem, Provider, QuitReason } from '@tptl/shared';
+import { type AnyPgColumn, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { ActKey, HouseStyle, Mode, PendingReward, PlotItem, ProofStatus, Provider, QuitReason, SpotResult } from '@tptl/shared';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -42,6 +42,7 @@ export const players = pgTable('players', {
   style: text('style').$type<HouseStyle>().notNull(),
   dailyGoal: integer('daily_goal').notNull(),
   totalFocusMin: integer('total_focus_min').notNull().default(0),
+  unverifiedMin: integer('unverified_min').notNull().default(0),
   plot: jsonb('plot').$type<PlotItem[]>().notNull().default([]),
   pending: jsonb('pending').$type<PendingReward[]>().notNull().default([]),
   quitReasons: jsonb('quit_reasons').$type<Partial<Record<QuitReason, number>>>().notNull().default({}),
@@ -70,6 +71,12 @@ export const dayStats = pgTable('day_stats', {
   qc: integer('qc').notNull().default(0),
   fs: integer('fs').notNull().default(0),
   fn: integer('fn').notNull().default(0),
+  vf: integer('vf').notNull().default(0),
+  uv: integer('uv').notNull().default(0),
+  rq: integer('rq').notNull().default(0),
+  rc: integer('rc').notNull().default(0),
+  so: integer('so').notNull().default(0),
+  sn: integer('sn').notNull().default(0),
 }, (t) => [primaryKey({ columns: [t.playerId, t.day] })]);
 
 /** Câu hỏi đã phát cho một phiên, kèm đáp án đúng (không bao giờ gửi xuống trình duyệt). */
@@ -98,6 +105,25 @@ export const focusSessions = pgTable('focus_sessions', {
   self: integer('self'),
   note: text('note').notNull().default(''),
   questions: jsonb('questions').$type<SessionQuestions>().notNull(),
+  /** Đã xác minh: ảnh khớp mã, hoặc phiên trên máy đạt điểm tập trung đủ cao. */
+  verified: boolean('verified').notNull().default(false),
+  proofStatus: text('proof_status').$type<ProofStatus>().notNull().default('none'),
+  proofCode: text('proof_code'),
+  proofPage: integer('proof_page'),
+  proofExp: ts('proof_exp'),
+  proofTries: integer('proof_tries').notNull().default(0),
+  proofReason: text('proof_reason').notNull().default(''),
+  /** Phiên đang chờ câu hỏi nhớ lại; mỗi người chỉ có một phiên như vậy. */
+  recallDue: boolean('recall_due').notNull().default(false),
+  recallQ: text('recall_q').notNull().default(''),
+  /** Câu hỏi soạn sẵn (AI không dùng được): người tổ chức tự xem câu trả lời. */
+  recallManual: boolean('recall_manual').notNull().default(false),
+  recallA: text('recall_a').notNull().default(''),
+  recallScore: integer('recall_score'),
+  recallVerdict: text('recall_verdict').notNull().default(''),
+  recallReason: text('recall_reason').notNull().default(''),
+  spotWeek: text('spot_week'),
+  spotResult: text('spot_result').$type<SpotResult>(),
 }, (t) => [
   index('focus_sessions_player_idx').on(t.playerId, t.startedAt),
   // Mỗi người chỉ có tối đa một phiên đang chạy.

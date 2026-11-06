@@ -12,7 +12,7 @@ export function dkey(ms: number): string {
 export const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function emptyDay(): DayStat {
-  return { s: 0, c: 0, q: 0, pl: 0, ac: 0, cs: 0, aw: 0, dn: 0, ms: 0, qa: 0, qc: 0, fs: 0, fn: 0 };
+  return { s: 0, c: 0, q: 0, pl: 0, ac: 0, cs: 0, aw: 0, dn: 0, ms: 0, qa: 0, qc: 0, fs: 0, fn: 0, vf: 0, uv: 0, rq: 0, rc: 0, so: 0, sn: 0 };
 }
 export const DAY_FIELDS = Object.keys(emptyDay()) as (keyof DayStat)[];
 
@@ -66,6 +66,18 @@ export function metrics(t: DayTotals, nDays: number, joined: number | null | und
     disc: t.s ? Math.round(100 * (0.4 * (comp ?? 0) + 0.3 * (kept ?? 0) + 0.3 * cons)) : null,
     quiz: t.qa ? t.qc / t.qa : null,
   };
+}
+
+/** Độ tin cậy = 40% phiên có xác minh + 30% câu nhớ lại khớp + 30% kiểm tra trực tiếp khớp, chỉ tính các phần có dữ liệu; trừ 15 điểm mỗi lần không khớp. */
+export function trustOf(t: DayTotals): number | null {
+  const parts: [number, number][] = [];
+  if (t.vf + t.uv) parts.push([t.vf / (t.vf + t.uv), 0.4]);
+  if (t.rq) parts.push([t.rc / t.rq, 0.3]);
+  if (t.so + t.sn) parts.push([t.so / (t.so + t.sn), 0.3]);
+  if (!parts.length) return null;
+  const w = parts.reduce((s, [, x]) => s + x, 0);
+  const v = parts.reduce((s, [r, x]) => s + r * x, 0);
+  return Math.max(0, Math.min(100, Math.round((100 * v) / w - 15 * t.sn)));
 }
 
 export interface ScoreInput {
@@ -124,8 +136,15 @@ export function wordCount(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
 }
 
-/** Điểm nhóm: 1 điểm cho mỗi phút tập trung hoàn thành, cộng 10 điểm cho mỗi phiên hoàn thành. */
+/** Điểm nhóm: chỉ phiên đã xác minh mới có điểm; 1 điểm cho mỗi phút, cộng 10 điểm cho mỗi phiên. */
 export const POINTS_PER_SESSION = 10;
+/** Thứ hai đầu tuần của ngày now: mỗi tuần một lượt kiểm tra trực tiếp. */
+export function weekKey(now = Date.now()): string {
+  const d = new Date(now);
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return dkey(d.getTime());
+}
 export function pointsOf(minutes: number, sessions: number): number {
   return Math.round(minutes + POINTS_PER_SESSION * sessions);
 }

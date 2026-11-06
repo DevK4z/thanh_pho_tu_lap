@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ACTS, ACT_KEYS, LIMITS, delta, dkey, keysBack, metrics, sumDays, type ActKey, type GroupDetail, type GroupQuestion } from '@tptl/shared';
+import { ACTS, ACT_KEYS, LIMITS, delta, dkey, keysBack, metrics, sumDays, trustOf, type ActKey, type GroupDetail, type GroupQuestion } from '@tptl/shared';
 import { Button, Card, Eyebrow, Field, inputCls, Pill, tableCls as t, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
 import { dmy, num, pct } from '../lib/format';
 import { qk, useLogs, useQuestions } from '../lib/queries';
 import { GrantTool } from './GrantTool';
 import { LogTable } from './LogTable';
+import { SpotCard } from './SpotCard';
 
 function exportCSV(d: GroupDetail) {
   const keys = keysBack(365), k7 = keysBack(7);
@@ -65,12 +66,13 @@ export function Admin({ gid, detail, isAppAdmin, onOpenReward }: { gid: string; 
         <Button onClick={() => { exportCSV(detail); toast('Đã tải file CSV.'); }}>Xuất CSV</Button>
       </div>
       {isAppAdmin && <GrantTool gid={gid} detail={detail} onOpenReward={onOpenReward} />}
+      <SpotCard gid={gid} />
       <Card>
         <h3>Từng thành viên (7 ngày)</h3>
         <p className="text-[13px] text-muted">Bấm vào một dòng để xem các phiên gần đây và ghi chú của thành viên.</p>
         <div className={t.wrap}>
           <table className={t.table}>
-            <thead><tr>{['Thành viên', 'Chuỗi', 'TC/TB', 'Phút', 'Phiên', 'Hoàn thành', 'Bỏ cuộc', 'Xao nhãng', 'Tập trung', 'Kỷ luật', 'Xu hướng', 'Lần cuối'].map((h) => <th key={h} className={t.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['Thành viên', 'Chuỗi', 'TC/TB', 'Phút', 'Phiên', 'Hoàn thành', 'Bỏ cuộc', 'Xao nhãng', 'Tập trung', 'Kỷ luật', 'Tin cậy', 'Xu hướng', 'Lần cuối'].map((h) => <th key={h} className={t.th}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map(({ p, m, pm }) => {
                 const tr = delta(m.disc, pm.disc);
@@ -80,7 +82,7 @@ export function Admin({ gid, detail, isAppAdmin, onOpenReward }: { gid: string; 
                     <td className={t.td}>{p.name}{risk && <> <Pill tone="warn">Cần chú ý</Pill></>}</td>
                     <td className={t.td}>{p.currentStreak}</td><td className={t.td}>{p.tasksDone}/{p.tasksFailed}</td>
                     <td className={t.td}>{Math.round(m.cs / 60)}</td><td className={t.td}>{m.s}</td><td className={t.td}>{pct(m.comp)}</td><td className={t.td}>{m.q}</td>
-                    <td className={t.td}>{m.dn + m.ms}</td><td className={t.td}>{num(m.focus)}</td><td className={t.td}>{num(m.disc)}</td>
+                    <td className={t.td}>{m.dn + m.ms}</td><td className={t.td}>{num(m.focus)}</td><td className={t.td}>{num(m.disc)}</td><td className={t.td}>{num(trustOf(m))}</td>
                     <td className={t.td}>{tr == null ? '–' : tr >= 3 ? '▲ +' + Math.round(tr) : tr <= -3 ? '▼ ' + Math.round(tr) : '–'}</td>
                     <td className={t.td}>{p.lastAt ? dmy(dkey(p.lastAt)) : '–'}</td>
                   </tr>

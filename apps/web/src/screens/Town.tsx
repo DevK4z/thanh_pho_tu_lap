@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { HST, ITEMS, SLOTS, TIERS, dkey, emptyDay, keysBack, levelOf, metrics, popOf, streakOf, sumDays, type GroupDetail, type Player } from '@tptl/shared';
+import { HST, ITEMS, SLOTS, TIERS, dkey, emptyDay, keysBack, levelOf, metrics, popOf, streakOf, sumDays, trustOf, type GroupDetail, type Player } from '@tptl/shared';
 import { Icon, type IconName } from '../components/Icons';
 import { CityView } from '../components/CityView';
 import { City, House, ItemArt } from '../components/Svg';
 import { Banner, Button, Meter, Modal } from '../components/ui';
 import { fmtMin, num, pct } from '../lib/format';
 import type { Tab } from './GroupApp';
+import { RecallCard } from './RecallCard';
 
-export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDetail; player: Player; onTab: (t: Tab) => void; onReward: () => void }) {
+export function Town({ detail, player: me, onTab, onReward, onRecallDone }: { detail: GroupDetail; player: Player; onTab: (t: Tab) => void; onReward: () => void; onRecallDone: () => void }) {
   const [visit, setVisit] = useState<Player | null>(null);
   const L = levelOf(me.totalFocusMin);
   const today = me.days[dkey(Date.now())] ?? emptyDay();
@@ -16,8 +17,8 @@ export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDet
   const np = me.pending.length;
   const doneMin = Math.round(today.cs / 60);
   const stats: [IconName, string, string | number][] = [
-    ['pop', 'Dân số', popOf(me.plot)], ['min', 'Phút tập trung', Math.round(me.totalFocusMin)], ['disc', 'Kỷ luật', num(m.disc)],
-    ['focus', 'Tập trung sâu', num(m.focus)], ['ok', 'Cam kết', pct(m.comp)],
+    ['pop', 'Dân số', popOf(me.plot)], ['min', 'Phút đã xác minh', Math.round(me.totalFocusMin)], ['disc', 'Kỷ luật', num(m.disc)],
+    ['focus', 'Tập trung sâu', num(m.focus)], ['ok', 'Cam kết', pct(m.comp)], ['shield', 'Tin cậy', num(trustOf(sumDays(me.days, keysBack(30))))],
   ];
   const total = me.tasksDone + me.tasksFailed;
   const resources: [IconName, string, string][] = [
@@ -36,6 +37,8 @@ export function Town({ detail, player: me, onTab, onReward }: { detail: GroupDet
           <Button variant="lamp" onClick={onReward}>Chọn công trình</Button>
         </Banner>
       )}
+
+      {detail.recall && <RecallCard key={detail.recall.sid} recall={detail.recall} onDone={onRecallDone} />}
 
       {/* Màn hình game: tiêu đề, tài nguyên, thành phố, nút hành động */}
       <div className="pk overflow-hidden">

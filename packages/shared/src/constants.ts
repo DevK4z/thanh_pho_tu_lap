@@ -68,8 +68,9 @@ export const LV: Level[] = [
   { lv: 5, at: 600, n: 'Nhà mẫu của thành phố' },
 ];
 
-export type QuitReason = 'tired' | 'urgent' | 'distracted' | 'hard' | 'closed' | 'violation' | 'other';
+export type QuitReason = 'tired' | 'urgent' | 'distracted' | 'hard' | 'closed' | 'violation' | 'other' | 'honest';
 export const REASONS: Record<QuitReason, string> = {
+  honest: 'Tự khai chưa làm đủ thời gian',
   tired: 'Mệt hoặc buồn ngủ',
   urgent: 'Có việc đột xuất',
   distracted: 'Bị xao nhãng',
@@ -80,18 +81,39 @@ export const REASONS: Record<QuitReason, string> = {
 };
 export const REASON_KEYS = Object.keys(REASONS) as QuitReason[];
 /** Lý do người dùng tự chọn khi bấm dừng phiên (closed và violation do hệ thống ghi). */
-export const USER_REASON_KEYS = REASON_KEYS.filter((k) => k !== 'closed' && k !== 'violation');
+export const USER_REASON_KEYS = REASON_KEYS.filter((k) => k !== 'closed' && k !== 'violation' && k !== 'honest');
 
 /* ---------- chống gian lận ---------- */
 /** Rời màn hình (đổi tab, click ra ngoài, thoát toàn màn hình) lâu hơn số giây này thì phiên thất bại. */
 export const GRACE_SECONDS = 3;
+
+/* ---------- bằng chứng ---------- */
+/** Thời hạn chụp ảnh sau khi nhận mã thử thách. */
+export const PROOF_SECONDS = 120;
+/** Số lần gửi ảnh tối đa cho một phiên. */
+export const PROOF_TRIES = 3;
+/** Phiên trên máy đạt điểm tập trung từ mức này thì được xác minh mà không cần ảnh. */
+export const VERIFY_FOCUS = 70;
+/** Câu hỏi nhớ lại đạt từ mức điểm này. */
+export const RECALL_PASS = 60;
+/** Quá số ngày này sau phiên thì không hỏi nhớ lại nữa. */
+export const RECALL_WINDOW_DAYS = 4;
+export const MIN_RECALL_WORDS = 4;
+/** Vật cần chụp cạnh mã thử thách. */
+export const PROOF_THING: Record<ActKey, string> = {
+  read: 'trang sách đang đọc (thấy rõ chữ in trên trang)',
+  deep: 'vở nháp hoặc bài vừa làm',
+  write: 'trang viết hoặc màn hình bài vừa viết',
+  move: 'giày, dụng cụ tập hoặc nơi vừa tập',
+  plant: 'cây hoặc chậu cây vừa chăm',
+};
 
 /* Bản đồ 7x7 lô; hàng 3 và cột 3 là đường, lô (1,1) là nhà chính. */
 export const GN = 7;
 export const SLOTS: [number, number][] = [];
 for (let r = 0; r < GN; r++) for (let c = 0; c < GN; c++) if (r !== 3 && c !== 3 && !(r === 1 && c === 1)) SLOTS.push([r, c]);
 
-export const LIMITS = { userName: 24, groupName: 40, goal: 120, note: 400, question: 200, option: 120 };
+export const LIMITS = { userName: 24, groupName: 40, goal: 120, note: 400, question: 200, option: 120, recallAnswer: 500 };
 
 /** Số câu kiểm tra hiện diện trong một phiên trên máy: 1 câu mỗi 10 phút, từ 1 đến 6. */
 export function checkCount(mode: Mode, plannedSec: number): number {

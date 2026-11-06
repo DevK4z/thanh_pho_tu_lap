@@ -2,7 +2,7 @@ import { and, count, desc, eq, gte, inArray, ne } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  DAILY_GOALS, DAY_FIELDS, HKEYS, ITEMS, LIMITS, SLOTS, dkey,
+  DAILY_GOALS, DAY_FIELDS, DAY_RE, HKEYS, ITEMS, LIMITS, SLOTS, dkey,
   type Days, type GroupDetail, type GroupSummary, type Player, type SessionLog,
 } from '@tptl/shared';
 import type { Ctx, User } from '../app';
@@ -10,6 +10,7 @@ import type { Db } from '../db/client';
 import { dayStats, focusSessions, groups, players, users } from '../db/schema';
 import { HttpError, parse, pgCode } from '../errors';
 import { publicSession } from '../questions';
+import { findRecall } from '../recall';
 import { cleanName } from './auth';
 
 export type PlayerRow = typeof players.$inferSelect;
@@ -22,7 +23,7 @@ const DAYS_WINDOW = 400;
 
 export function toPlayer(p: PlayerRow, days: Days): Player {
   return {
-    id: p.id, userId: p.userId, name: p.name, style: p.style, dailyGoal: p.dailyGoal, totalFocusMin: p.totalFocusMin,
+    id: p.id, userId: p.userId, name: p.name, style: p.style, dailyGoal: p.dailyGoal, totalFocusMin: p.totalFocusMin, unverifiedMin: p.unverifiedMin,
     plot: p.plot, pending: p.pending, quitReasons: p.quitReasons, days,
     currentStreak: p.currentStreak, bestStreak: p.bestStreak, tasksDone: p.tasksDone, tasksFailed: p.tasksFailed,
     createdAt: p.createdAt.getTime(), lastAt: p.lastAt ? p.lastAt.getTime() : null,
@@ -115,13 +116,16 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdm
   app.get('/groups/:gid', async (req): Promise<GroupDetail> => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
+    const { day } = parse(z.object({ day: z.string().regex(DAY_RE).optional() }), req.query);
     const g = await requireMember(db, u, gid, isAdmin(u));
     const [owner] = await db.select({ name: users.name }).from(users).where(eq(users.id, g.ownerId)).limit(1);
     const rows = await db.select().from(players).where(eq(players.groupId, gid)).orderBy(desc(players.totalFocusMin));
     const days = await loadDays(db, rows.map((r) => r.id));
     const mine = rows.find((r) => r.userId === u.id);
     let active: GroupDetail['active'] = null;
+    let recall: GroupDetail['recall'] = null;
     if (mine) {
+      recall = await findRecall(db, mine.id, day ?? dkey(Date.now()));
       const [s] = await db.select().from(focusSessions).where(and(eq(focusSessions.playerId, mine.id), eq(focusSessions.status, 'active'))).limit(1);
       if (s) active = publicSession(s);
     }
@@ -132,6 +136,7 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdm
       players: rows.map((r) => toPlayer(r, days.get(r.id)!)),
       meId: mine?.id ?? null,
       active,
+      recall,
       serverTime: Date.now(),
     };
   });
@@ -193,7 +198,12 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdm
     return rows.map((r) => ({
       id: r.id, day: r.day, startedAt: r.startedAt.getTime(), endedAt: r.endedAt ? r.endedAt.getTime() : null, act: r.act, mode: r.mode,
       plannedSec: r.plannedSec, activeSec: r.activeSec, status: r.status as SessionLog['status'], reason: r.reason ?? null,
-      dist: r.dist, missed: r.missed, focus: r.focus, note: r.note,
+      dist: r.dist, missed: r.missed, focus: r.focus,
+      // Giấu ghi chú khỏi chính chủ cho đến khi trả lời xong câu hỏi nhớ lại.
+      note: r.recallDue && p.userId === u.id ? '' : r.note,
+      verified: r.verified, proofStatus: r.proofStatus, proofReason: r.proofReason,
+      recallQuestion: r.recallDue ? '' : r.recallQ, recallAnswer: r.recallA, recallScore: r.recallScore, recallVerdict: r.recallVerdict, recallReason: r.recallReason,
+      spotResult: r.spotResult,
     }));
   });
 }

@@ -40,6 +40,7 @@ export function Reward({ gid, player, result: r, onAllPlaced }: { gid: string; p
           <Stat3 items={[[r.focus, 'điểm tập trung'], [r.qc + '/' + r.qa, 'câu đúng'], [r.mode === 'screen' ? r.dist + r.missed : '–', 'cảnh báo']]} />
           {r.newLv > r.prevLv && <p><b>Nhà của bạn lên giai đoạn mới: {LV[r.newLv - 1].n}.</b></p>}
           {r.shiny && <p>Điểm tập trung từ 85 trở lên nên công trình được mạ vàng.</p>}
+          {!r.verified && <p className="text-[13px] text-muted">Phiên này chưa xác minh: bạn vẫn nhận công trình, nhưng {r.minutes} phút không tính vào giai đoạn nhà và không có điểm nhóm.</p>}
         </Card>
       )}
       <Card>

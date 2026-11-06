@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { REASONS, delta, keysBack, metrics, sumDays, type Metrics, type Player, type QuitReason } from '@tptl/shared';
+import { REASONS, RECALL_PASS, VERIFY_FOCUS, delta, keysBack, metrics, sumDays, trustOf, type Metrics, type Player, type QuitReason } from '@tptl/shared';
 import { BarChart, LineChart } from '../components/Charts';
-import { BigNumber, Button, Card, Chip, Eyebrow, Grid, KV, Meter, Trend } from '../components/ui';
-import { dmy, num, pct } from '../lib/format';
+import { BigNumber, Button, Card, Chip, Eyebrow, Grid, KV, Meter, Pill, Trend } from '../components/ui';
+import { dmy, fmtMin, num, pct } from '../lib/format';
 import { useLogs } from '../lib/queries';
 import type { Tab } from './GroupApp';
 import { LogTable } from './LogTable';
@@ -25,6 +25,7 @@ export function Mine({ gid, player: me, onTab }: { gid: string; player: Player; 
   const logs = useLogs(gid, me.id);
   const cur = metrics(sumDays(me.days, keysBack(n)), n, me.createdAt);
   const prv = metrics(sumDays(me.days, keysBack(n, n)), n, me.createdAt);
+  const trust = trustOf(cur);
   const k14 = keysBack(14);
   const mins = k14.map((k) => Math.round((me.days[k]?.cs ?? 0) / 60));
   const foc = k14.map((k) => { const d = me.days[k]; return d && d.fn ? Math.round(d.fs / d.fn) : null; });
@@ -56,6 +57,25 @@ export function Mine({ gid, player: me, onTab }: { gid: string; player: Player; 
         <Card><Eyebrow>Kỷ luật tự thân</Eyebrow><BigNumber>{num(cur.disc)}</BigNumber><Meter value={cur.disc ?? 0} label="Điểm kỷ luật" /><Trend d={delta(cur.disc, prv.disc)} /></Card>
         <Card><Eyebrow>Tập trung sâu</Eyebrow><BigNumber>{num(cur.focus)}</BigNumber><Meter value={cur.focus ?? 0} label="Điểm tập trung" /><Trend d={delta(cur.focus, prv.focus)} /></Card>
       </Grid>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <Eyebrow>Độ tin cậy ({n} ngày)</Eyebrow>
+          {trust != null && trust < 60 && <Pill tone="warn">Cần cải thiện</Pill>}
+        </div>
+        <BigNumber>{num(trust)}</BigNumber>
+        <Meter value={trust ?? 0} label="Độ tin cậy" />
+        <Trend d={delta(trust, trustOf(prv))} />
+        <KV rows={[
+          ['Phiên hoàn thành có xác minh', `${cur.vf} / ${cur.vf + cur.uv}`],
+          ['Câu hỏi nhớ lại khớp', `${cur.rc} / ${cur.rq}`],
+          ['Kiểm tra trực tiếp', `${cur.so} khớp · ${cur.sn} không khớp`],
+          ['Phút chưa xác minh (tổng)', fmtMin(me.unverifiedMin)],
+        ]} />
+        <p className="text-[13px] text-muted">
+          Độ tin cậy = 40% phiên có xác minh (ảnh khớp mã thử thách, hoặc phiên trên máy đạt điểm tập trung từ {VERIFY_FOCUS}) + 30% câu nhớ lại đạt từ {RECALL_PASS} điểm + 30% kiểm tra trực tiếp khớp,
+          chỉ tính các phần có dữ liệu; trừ 15 điểm mỗi lần không khớp. Phút chưa xác minh không tính vào giai đoạn nhà và điểm nhóm. Tự khai chưa làm đủ không trừ độ tin cậy.
+        </p>
+      </Card>
       <Card>
         <h3>Nhiệm vụ (từ đầu đến nay)</h3>
         <KV rows={[

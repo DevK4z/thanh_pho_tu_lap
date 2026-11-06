@@ -18,6 +18,12 @@ export interface DayStat {
   /** câu đúng */ qc: number;
   /** tổng điểm tập trung */ fs: number;
   /** số phiên có điểm tập trung */ fn: number;
+  /** phiên hoàn thành có xác minh */ vf: number;
+  /** phiên hoàn thành chưa xác minh */ uv: number;
+  /** câu nhớ lại đã chấm */ rq: number;
+  /** câu nhớ lại khớp */ rc: number;
+  /** kiểm tra trực tiếp khớp */ so: number;
+  /** kiểm tra trực tiếp không khớp */ sn: number;
 }
 export type Days = Record<string, DayStat>;
 
@@ -40,7 +46,10 @@ export interface Player {
   name: string;
   style: HouseStyle;
   dailyGoal: number;
+  /** Phút đã xác minh: tính vào giai đoạn nhà. */
   totalFocusMin: number;
+  /** Phút của phiên chưa xác minh: không tính vào giai đoạn nhà. */
+  unverifiedMin: number;
   plot: PlotItem[];
   pending: PendingReward[];
   quitReasons: Partial<Record<QuitReason, number>>;
@@ -74,7 +83,45 @@ export interface ActiveSession {
   checksAnswered: number;
   checksCorrect: number;
   verify: IssuedQuestion[];
+  proof: ProofState;
 }
+
+/** none: chưa lấy mã · ready: đã có mã, chờ ảnh · ok: ảnh khớp · fail: ảnh chưa khớp · na: máy chủ chưa bật kiểm tra ảnh. */
+export type ProofStatus = 'none' | 'ready' | 'ok' | 'fail' | 'na';
+export interface ProofState {
+  status: ProofStatus;
+  code: string | null;
+  /** Số trang cần mở (chỉ với hoạt động đọc sách). */
+  page: number | null;
+  expiresAt: number | null;
+  tries: number;
+  reason: string;
+}
+
+/** Phiên hôm trước đang chờ câu hỏi nhớ lại. */
+export interface RecallDue { sid: string; day: string; act: ActKey; question: string | null }
+/** score null: chưa chấm tự động được, người tổ chức xem lại. */
+export interface RecallResult { score: number | null; verdict: string; reason: string }
+
+export type SpotResult = 'ok' | 'no';
+export interface SpotPick {
+  sid: string;
+  day: string;
+  act: ActKey;
+  minutes: number;
+  goal: string;
+  note: string;
+  verified: boolean;
+  result: SpotResult | null;
+}
+export interface SpotRow {
+  playerId: string;
+  name: string;
+  /** Là chính người xem: không hiện phiên được bốc để giữ tính bất ngờ, và không được tự chấm. */
+  self: boolean;
+  picks: SpotPick[];
+}
+export interface SpotDraw { week: string | null; rows: SpotRow[] }
 
 export interface GroupDetail {
   group: GroupInfo;
@@ -85,6 +132,7 @@ export interface GroupDetail {
   /** id người chơi của tài khoản hiện tại trong nhóm, null nếu chưa tạo nhà. */
   meId: string | null;
   active: ActiveSession | null;
+  recall: RecallDue | null;
   serverTime: number;
 }
 
@@ -103,6 +151,15 @@ export interface SessionLog {
   missed: number;
   focus: number | null;
   note: string;
+  verified: boolean;
+  proofStatus: ProofStatus;
+  proofReason: string;
+  recallQuestion: string;
+  recallAnswer: string;
+  recallScore: number | null;
+  recallVerdict: string;
+  recallReason: string;
+  spotResult: SpotResult | null;
 }
 
 export interface SessionResult {
@@ -118,6 +175,8 @@ export interface SessionResult {
   mode: Mode;
   prevLv: number;
   newLv: number;
+  /** false: vẫn nhận công trình nhưng số phút không tính vào giai đoạn nhà và bảng xếp hạng. */
+  verified: boolean;
   stats: TaskStats;
 }
 
