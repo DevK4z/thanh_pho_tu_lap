@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dkey, type Me, type Ranking } from '@tptl/shared';
@@ -6,13 +7,21 @@ import { buildApp } from '../src/app';
 import { openDatabase, type Database } from '../src/db/client';
 import { focusSessions } from '../src/db/schema';
 import { loadEnv } from '../src/env';
+import { groups } from '../src/db/schema';
+
+let codeSeq = 0;
+/** Mã mời của nhóm, đọc thẳng trong database. */
+async function inviteOf(gid: string) {
+  const [g] = await database.db.select({ c: groups.inviteCode }).from(groups).where(eq(groups.id, gid));
+  return g.c;
+}
 
 let app: FastifyInstance;
 let database: Database;
 
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });
-  app = await buildApp({ db: database.db, env: loadEnv({}), rateLimit: false });
+  app = await buildApp({ db: database.db, env: loadEnv({ GROUP_CREATION: 'open' }), rateLimit: false });
 });
 afterAll(async () => { await app.close(); await database.close(); });
 
@@ -28,9 +37,9 @@ async function member(name: string, group: { create: string } | { join: string }
     gid = ((await call('POST', '/groups', token, { name: group.create })).body as Me).currentGroupId!;
   } else {
     gid = group.join;
-    await call('POST', `/groups/${gid}/join`, token);
+    await call('POST', '/groups/join', token, { code: await inviteOf(gid) });
   }
-  const p = (await call('POST', `/groups/${gid}/players`, token, { name, style: 'ngoi', dailyGoal: 30 })).body as { id: string };
+  const p = (await call('POST', `/groups/${gid}/players`, token, { name, style: 'ngoi', dailyGoal: 30, participantCode: 'P' + (++codeSeq) })).body as { id: string };
   return { token, gid, pid: p.id };
 }
 /** Thêm c phiên đã hoàn thành, tổng cộng cs giây. */
@@ -53,7 +62,8 @@ describe('xếp hạng nhóm', () => {
     await add(b1.pid, today, 6000, 1, false); // chưa xác minh: không có điểm
 
     const week = (await call('GET', '/ranking?range=week', a1.token)).body as Ranking;
-    expect(week.groups.map((g) => [g.name, g.rank, g.points])).toEqual([['Nhóm Sao', 1, 120], ['Nhóm Mây', 2, 20], ['Nhóm Trống', 3, 0]]);
+    // Người ngoài chỉ thấy điểm và thứ hạng của nhóm khác, không thấy tên.
+    expect(week.groups.map((g) => [g.name, g.rank, g.points])).toEqual([['Nhóm Sao', 1, 120], ['Nhóm khác', 2, 20], ['Nhóm khác', 3, 0]]);
     expect(week.groups[0]).toMatchObject({ members: 2, contributors: 2, minutes: 90, sessions: 3, perMember: 60 });
     expect(week.myGroupId).toBe(a1.gid);
     expect(week.contributions.map((c) => [c.name, c.points, c.share])).toEqual([['An', 80, 66.7], ['Bình', 40, 33.3]]);
@@ -77,7 +87,9 @@ describe('xếp hạng nhóm', () => {
     await add(x.pid, dkey(Date.now()), 6000, 1);
     await add(y.pid, dkey(Date.now()), 6000, 1);
     const r = (await call('GET', '/ranking', x.token)).body as Ranking;
-    const tied = r.groups.filter((g) => g.name.startsWith('Nhóm Đồng'));
-    expect(tied.map((g) => g.rank)).toEqual([tied[0].rank, tied[0].rank]);
+    const own = r.groups.find((g) => g.name === 'Nhóm Đồng 1')!;
+    const tied = r.groups.filter((g) => g.points === own.points);
+    expect(tied).toHaveLength(2);
+    expect(tied.map((g) => g.rank)).toEqual([own.rank, own.rank]);
   });
 });

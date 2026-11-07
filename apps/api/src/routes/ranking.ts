@@ -7,7 +7,7 @@ import type { Ctx } from '../app';
 import { focusSessions, groups, players } from '../db/schema';
 import { parse } from '../errors';
 
-export function rankingRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
+export function rankingRoutes(app: FastifyInstance, { db, requireUser, isAdmin }: Ctx) {
   app.get('/ranking', async (req): Promise<Ranking> => {
     const u = await requireUser(req);
     const { range } = parse(z.object({ range: z.enum(['week', 'all']).default('week') }), req.query);
@@ -56,6 +56,8 @@ export function rankingRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
         .map((r) => ({ playerId: r.playerId, name: r.name, ...stat(r), share: total > 0 ? Math.round(((r.cs / 60 + POINTS_PER_SESSION * r.c) / total) * 1000) / 10 : null }))
         .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'vi'));
     }
-    return { range, generatedAt: Date.now(), groups: ranked, myGroupId: mine ? u.currentGroupId : null, contributions };
+    // Người ngoài nhóm chỉ thấy thứ hạng và điểm, không thấy tên hay mã của nhóm khác.
+    const shown = isAdmin(u) ? ranked : ranked.map((g, i) => (g.id === u.currentGroupId ? g : { ...g, id: 'an-' + i, name: 'Nhóm khác' }));
+    return { range, generatedAt: Date.now(), groups: shown, myGroupId: mine ? u.currentGroupId : null, contributions };
   });
 }

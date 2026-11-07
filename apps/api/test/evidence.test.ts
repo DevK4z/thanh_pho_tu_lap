@@ -9,6 +9,14 @@ import { buildApp } from '../src/app';
 import { openDatabase, type Database } from '../src/db/client';
 import { focusSessions } from '../src/db/schema';
 import { loadEnv } from '../src/env';
+import { groups } from '../src/db/schema';
+
+let codeSeq = 0;
+/** Mã mời của nhóm, đọc thẳng trong database. */
+async function inviteOf(gid: string) {
+  const [g] = await database.db.select({ c: groups.inviteCode }).from(groups).where(eq(groups.id, gid));
+  return g.c;
+}
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).toString('base64');
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).toString('base64');
@@ -23,7 +31,7 @@ const DAY = 86400000;
 
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });
-  const env = loadEnv({ ADMIN_EMAILS: 'boss-account@example.com' });
+  const env = loadEnv({ ADMIN_EMAILS: 'boss-account@example.com', GROUP_CREATION: 'open' });
   const verifiers = { google: async (c: string) => ({ sub: 'g-' + c, name: 'Boss', email: c + '@example.com', avatarUrl: null }) };
   app = await buildApp({ db: database.db, env, rateLimit: false, ai, verifiers });
   noAi = await buildApp({ db: database.db, env, rateLimit: false, ai: null });
@@ -45,9 +53,9 @@ let seq = 0;
 async function setup(name: string, gid?: string) {
   const { token } = (await call('POST', '/auth/guest', undefined, { name })).body as { token: string };
   let id = gid;
-  if (id) await call('POST', `/groups/${id}/join`, token);
+  if (id) await call('POST', '/groups/join', token, { code: await inviteOf(id) });
   else id = ((await call('POST', '/groups', token, { name: `Nhóm ${name} ${++seq}` })).body as Me).currentGroupId!;
-  const p = (await call('POST', `/groups/${id}/players`, token, { name, style: 'ngoi', dailyGoal: 30 })).body as { id: string };
+  const p = (await call('POST', `/groups/${id}/players`, token, { name, style: 'ngoi', dailyGoal: 30, participantCode: 'P' + (++codeSeq) })).body as { id: string };
   return { token, gid: id, pid: p.id };
 }
 type U = Awaited<ReturnType<typeof setup>>;

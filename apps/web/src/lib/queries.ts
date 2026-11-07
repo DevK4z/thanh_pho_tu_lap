@@ -29,7 +29,8 @@ export const useMe = () =>
     retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 2,
   });
 
-export const useGroups = () => useQuery({ queryKey: qk.groups, queryFn: () => api<GroupSummary[]>('GET', '/groups'), refetchInterval: 15_000 });
+/** Danh sách nhóm: chỉ quản trị viên ứng dụng mới có dữ liệu. */
+export const useGroups = (enabled = true) => useQuery({ queryKey: qk.groups, queryFn: () => api<GroupSummary[]>('GET', '/groups'), refetchInterval: 15_000, enabled });
 
 /** Dữ liệu nhóm tự làm mới định kỳ để thấy tiến độ của các thành viên khác. */
 export const useGroup = (gid: string, live = true) =>
@@ -80,6 +81,7 @@ export function useGroupMembership() {
   return {
     create: useMutation({ mutationFn: (name: string) => api<Me>('POST', '/groups', { name }), onSuccess: done }),
     join: useMutation({ mutationFn: (gid: string) => api<Me>('POST', `/groups/${gid}/join`), onSuccess: done }),
+    joinCode: useMutation({ mutationFn: (code: string) => api<Me>('POST', '/groups/join', { code }), onSuccess: done }),
     leave: useMutation({ mutationFn: () => api<Me>('POST', '/me/leave-group'), onSuccess: done }),
   };
 }

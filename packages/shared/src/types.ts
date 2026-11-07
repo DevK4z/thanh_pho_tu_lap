@@ -46,6 +46,8 @@ export interface Player {
   name: string;
   style: HouseStyle;
   dailyGoal: number;
+  /** Mã cá nhân của người tham gia thực nghiệm (ví dụ T0-015), để ghép với dữ liệu khảo sát. */
+  participantCode: string | null;
   /** Phút đã xác minh: tính vào giai đoạn nhà. */
   totalFocusMin: number;
   /** Phút của phiên chưa xác minh: không tính vào giai đoạn nhà. */
@@ -64,8 +66,13 @@ export interface Player {
   lastAt: number | null;
 }
 
-export interface GroupSummary { id: string; name: string; ownerName: string; createdAt: number; members: number }
-export interface GroupInfo { id: string; name: string; ownerId: string; ownerName: string; createdAt: number }
+/** Chỉ quản trị viên ứng dụng thấy danh sách nhóm (kèm mã mời). */
+export interface GroupSummary { id: string; name: string; ownerName: string; createdAt: number; members: number; inviteCode: string }
+export interface GroupInfo {
+  id: string; name: string; ownerId: string; ownerName: string; createdAt: number;
+  /** Mã mời: chỉ trả về cho trưởng nhóm và quản trị viên ứng dụng. */
+  inviteCode: string | null;
+}
 
 /** Câu hỏi gửi xuống trình duyệt: không kèm đáp án. */
 export interface IssuedQuestion { id: string; q: string; o: string[] }
@@ -189,13 +196,19 @@ export interface GrantResult { name: string; pending: number }
 
 export interface GroupQuestion { id: string; act: ActKey | 'all'; q: string; o: string[]; a: number }
 
-export interface PublicConfig { google: string | null; facebook: string | null }
+export interface PublicConfig {
+  google: string | null;
+  facebook: string | null;
+  /** admin: chỉ quản trị viên ứng dụng lập nhóm; open: ai cũng lập được. Vào nhóm luôn cần mã mời. */
+  groupCreation: 'admin' | 'open';
+}
 
 export interface ApiErrorBody { error: { code: string; message: string } }
 
 /** Một dòng báo cáo admin: một người trong một nhóm. Tỷ lệ tính trên số phiên đã kết thúc (không tính phiên đang chạy). */
 export interface AdminReportRow {
   playerId: string;
+  participantCode: string | null;
   name: string;
   groupId: string;
   groupName: string;
@@ -259,4 +272,22 @@ export interface Ranking {
   /** Nhóm của người xem (null khi chưa ở nhóm nào) và phần đóng góp của từng thành viên trong nhóm đó. */
   myGroupId: string | null;
   contributions: RankContribution[];
+}
+
+/** Toàn bộ dữ liệu cho quản trị viên tải về để sao lưu và phân tích. Không chứa email hay đáp án câu hỏi. */
+export interface FullExport {
+  exportedAt: number;
+  groups: { id: string; name: string; ownerName: string; createdAt: number }[];
+  players: {
+    id: string; groupId: string; groupName: string; participantCode: string | null; name: string; provider: Provider;
+    totalFocusMin: number; unverifiedMin: number; tasksDone: number; tasksFailed: number; currentStreak: number; bestStreak: number;
+    createdAt: number; lastAt: number | null;
+  }[];
+  sessions: {
+    id: string; playerId: string; participantCode: string | null; act: ActKey; mode: Mode; day: string; startedAt: number; endedAt: number | null;
+    status: string; reason: string | null; plannedSec: number; activeSec: number; awaySec: number; dist: number; missed: number; qa: number; qc: number;
+    focus: number | null; self: number | null; goal: string; note: string; verified: boolean; proofStatus: string; proofTries: number;
+    recallScore: number | null; recallVerdict: string; recallAnswer: string; spotResult: string | null;
+  }[];
+  days: ({ playerId: string; participantCode: string | null; day: string } & DayStat)[];
 }

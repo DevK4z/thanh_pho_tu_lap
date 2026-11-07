@@ -1,8 +1,9 @@
+import { randomInt } from 'node:crypto';
 import { and, count, desc, eq, gte, inArray, ne } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  DAILY_GOALS, DAY_FIELDS, DAY_RE, HKEYS, ITEMS, LIMITS, SLOTS, dkey,
+  DAILY_GOALS, DAY_FIELDS, DAY_RE, HKEYS, INVITE_ALPHABET, INVITE_LENGTH, ITEMS, LIMITS, PARTICIPANT_RE, SLOTS, dkey, normalizeCode,
   type Days, type GroupDetail, type GroupSummary, type Player, type SessionLog,
 } from '@tptl/shared';
 import type { Ctx, User } from '../app';
@@ -18,12 +19,16 @@ type GroupRow = typeof groups.$inferSelect;
 
 export const uuidParam = (...keys: string[]) => z.object(Object.fromEntries(keys.map((k) => [k, z.string().uuid('mã không hợp lệ')])));
 export const groupKey = (name: string) => name.toLowerCase();
+const makeInvite = () => Array.from({ length: INVITE_LENGTH }, () => INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)]).join('');
+// Giữ nguyên dấu gạch để khớp với mã trong phiếu khảo sát; chỉ bỏ khoảng trắng và viết hoa.
+const participantCode = z.string().transform((v) => v.trim().toUpperCase()).refine((v) => PARTICIPANT_RE.test(v), 'mã cá nhân không hợp lệ');
+const joinLimit = { rateLimit: { max: 20, timeWindow: '1 minute' } };
 /** Số liệu theo ngày được trả về trong khoảng này (đủ cho bảng 365 ngày và xuất CSV). */
 const DAYS_WINDOW = 400;
 
 export function toPlayer(p: PlayerRow, days: Days): Player {
   return {
-    id: p.id, userId: p.userId, name: p.name, style: p.style, dailyGoal: p.dailyGoal, totalFocusMin: p.totalFocusMin, unverifiedMin: p.unverifiedMin,
+    id: p.id, userId: p.userId, name: p.name, participantCode: p.participantCode, style: p.style, dailyGoal: p.dailyGoal, totalFocusMin: p.totalFocusMin, unverifiedMin: p.unverifiedMin,
     plot: p.plot, pending: p.pending, quitReasons: p.quitReasons, days,
     currentStreak: p.currentStreak, bestStreak: p.bestStreak, tasksDone: p.tasksDone, tasksFailed: p.tasksFailed,
     createdAt: p.createdAt.getTime(), lastAt: p.lastAt ? p.lastAt.getTime() : null,
@@ -61,26 +66,46 @@ async function loadDays(db: Db, ids: string[]): Promise<Map<string, Days>> {
   return out;
 }
 
-export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdmin }: Ctx) {
+export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, isAdmin }: Ctx) {
+  /** Mã mời chưa dùng (thử lại vài lần nếu trùng). */
+  async function freshInvite(): Promise<string> {
+    for (let i = 0; i < 5; i++) {
+      const c = makeInvite();
+      const [hit] = await db.select({ id: groups.id }).from(groups).where(eq(groups.inviteCode, c)).limit(1);
+      if (!hit) return c;
+    }
+    throw new HttpError(500, 'invite_failed', 'Chưa tạo được mã mời, hãy thử lại.');
+  }
+  async function requireManager(u: User, gid: string): Promise<GroupRow> {
+    const admin = isAdmin(u);
+    const g = await requireMember(db, u, gid, admin);
+    if (g.ownerId !== u.id && !admin) throw new HttpError(403, 'owner_only', 'Chỉ trưởng nhóm làm được việc này.');
+    return g;
+  }
+
+  /** Danh sách nhóm chỉ dành cho quản trị viên ứng dụng; người khác vào nhóm bằng mã mời. */
   app.get('/groups', async (req): Promise<GroupSummary[]> => {
-    await requireUser(req);
+    const u = await requireUser(req);
+    if (!isAdmin(u)) return [];
     const members = db.select({ groupId: players.groupId, n: count().as('n') }).from(players).groupBy(players.groupId).as('members');
     const rows = await db
-      .select({ id: groups.id, name: groups.name, createdAt: groups.createdAt, ownerName: users.name, members: members.n })
+      .select({ id: groups.id, name: groups.name, inviteCode: groups.inviteCode, createdAt: groups.createdAt, ownerName: users.name, members: members.n })
       .from(groups)
       .innerJoin(users, eq(users.id, groups.ownerId))
       .leftJoin(members, eq(members.groupId, groups.id))
       .orderBy(desc(groups.createdAt))
       .limit(100);
-    return rows.map((r) => ({ id: r.id, name: r.name, ownerName: r.ownerName, createdAt: r.createdAt.getTime(), members: Number(r.members ?? 0) }));
+    return rows.map((r) => ({ id: r.id, name: r.name, inviteCode: r.inviteCode, ownerName: r.ownerName, createdAt: r.createdAt.getTime(), members: Number(r.members ?? 0) }));
   });
 
   app.post('/groups', async (req, reply) => {
     const u = await requireUser(req);
+    if (env.GROUP_CREATION === 'admin' && !isAdmin(u)) throw new HttpError(403, 'admin_only', 'Chỉ quản trị viên ứng dụng lập được nhóm. Hãy xin mã mời từ thầy cô hoặc trưởng nhóm.');
     const { name } = parse(z.object({ name: cleanName(LIMITS.groupName) }), req.body);
+    const inviteCode = await freshInvite();
     try {
       const me = await db.transaction(async (tx) => {
-        const [g] = await tx.insert(groups).values({ name, nameKey: groupKey(name), ownerId: u.id }).returning();
+        const [g] = await tx.insert(groups).values({ name, nameKey: groupKey(name), ownerId: u.id, inviteCode }).returning();
         const [nu] = await tx.update(users).set({ currentGroupId: g.id }).where(eq(users.id, u.id)).returning();
         return nu;
       });
@@ -91,9 +116,21 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdm
     }
   });
 
+  /** Vào nhóm bằng mã mời. */
+  app.post('/groups/join', { config: joinLimit }, async (req) => {
+    const u = await requireUser(req);
+    const { code } = parse(z.object({ code: z.string().max(20).transform(normalizeCode) }), req.body);
+    const [g] = code ? await db.select({ id: groups.id }).from(groups).where(eq(groups.inviteCode, code)).limit(1) : [];
+    if (!g) throw new HttpError(404, 'invite_invalid', 'Mã mời không đúng hoặc đã được đổi. Hãy hỏi lại thầy cô hoặc trưởng nhóm.');
+    const [nu] = await db.update(users).set({ currentGroupId: g.id }).where(eq(users.id, u.id)).returning();
+    return toMe(nu);
+  });
+
+  /** Vào nhóm theo mã nhóm: chỉ quản trị viên ứng dụng (người khác dùng mã mời). */
   app.post('/groups/:gid/join', async (req) => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
+    if (!isAdmin(u)) throw new HttpError(403, 'invite_required', 'Hãy vào nhóm bằng mã mời.');
     const [g] = await db.select({ id: groups.id }).from(groups).where(eq(groups.id, gid)).limit(1);
     if (!g) throw new HttpError(404, 'group_not_found', 'Nhóm không còn tồn tại.');
     const [nu] = await db.update(users).set({ currentGroupId: gid }).where(eq(users.id, u.id)).returning();
@@ -130,7 +167,7 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdm
       if (s) active = publicSession(s);
     }
     return {
-      group: { id: g.id, name: g.name, ownerId: g.ownerId, ownerName: owner?.name ?? '', createdAt: g.createdAt.getTime() },
+      group: { id: g.id, name: g.name, ownerId: g.ownerId, ownerName: owner?.name ?? '', createdAt: g.createdAt.getTime(), inviteCode: g.ownerId === u.id || isAdmin(u) ? g.inviteCode : null },
       isOwner: g.ownerId === u.id,
       canManage: g.ownerId === u.id || isAdmin(u),
       players: rows.map((r) => toPlayer(r, days.get(r.id)!)),
@@ -149,14 +186,48 @@ export function groupRoutes(app: FastifyInstance, { db, requireUser, toMe, isAdm
       name: cleanName(LIMITS.userName),
       style: z.enum(HKEYS as [string, ...string[]]),
       dailyGoal: z.number().int().refine((n) => DAILY_GOALS.includes(n), 'mục tiêu không hợp lệ'),
+      participantCode,
     }), req.body);
+    await uniqueCode(gid, body.participantCode);
     try {
-      const [p] = await db.insert(players).values({ groupId: gid, userId: u.id, name: body.name, style: body.style as PlayerRow['style'], dailyGoal: body.dailyGoal }).returning();
+      const [p] = await db.insert(players).values({ groupId: gid, userId: u.id, name: body.name, style: body.style as PlayerRow['style'], dailyGoal: body.dailyGoal, participantCode: body.participantCode }).returning();
       return reply.status(201).send(toPlayer(p, {}));
     } catch (e) {
       if (pgCode(e) === '23505') throw new HttpError(409, 'player_exists', 'Bạn đã có nhà trong nhóm này.');
       throw e;
     }
+  });
+
+  async function uniqueCode(gid: string, code: string, except?: string) {
+    const [hit] = await db.select({ id: players.id }).from(players).where(and(eq(players.groupId, gid), eq(players.participantCode, code))).limit(1);
+    if (hit && hit.id !== except) throw new HttpError(409, 'participant_taken', `Mã cá nhân ${code} đã có người dùng trong nhóm. Hãy kiểm tra lại với thầy cô hoặc trưởng nhóm.`);
+  }
+
+  /** Đổi mã mời: mã cũ hết hiệu lực, thành viên đang ở trong nhóm không bị ảnh hưởng. */
+  app.post('/groups/:gid/invite', async (req) => {
+    const u = await requireUser(req);
+    const { gid } = parse(uuidParam('gid'), req.params);
+    await requireManager(u, gid);
+    const inviteCode = await freshInvite();
+    await db.update(groups).set({ inviteCode }).where(eq(groups.id, gid));
+    return { inviteCode };
+  });
+
+  /** Mã cá nhân: tự đặt khi chưa có; sau đó chỉ trưởng nhóm hoặc quản trị viên ứng dụng sửa được. */
+  app.patch('/groups/:gid/players/:pid/participant', async (req) => {
+    const u = await requireUser(req);
+    const { gid, pid } = parse(uuidParam('gid', 'pid'), req.params);
+    const { participantCode: code } = parse(z.object({ participantCode }), req.body);
+    const admin = isAdmin(u);
+    const g = await requireMember(db, u, gid, admin);
+    const [p] = await db.select().from(players).where(and(eq(players.id, pid), eq(players.groupId, gid))).limit(1);
+    if (!p) throw new HttpError(404, 'player_not_found', 'Không tìm thấy thành viên.');
+    const manager = g.ownerId === u.id || admin;
+    if (!manager && !(p.userId === u.id && !p.participantCode)) throw new HttpError(403, 'forbidden', 'Mã cá nhân đã được đặt. Nhờ trưởng nhóm sửa nếu bị sai.');
+    await uniqueCode(gid, code, pid);
+    await db.update(players).set({ participantCode: code }).where(eq(players.id, pid));
+    req.log.info({ gid, pid, by: u.id }, 'participant_code_set');
+    return { participantCode: code };
   });
 
   /** Đặt phần thưởng đầu tiên trong hàng chờ lên một lô đất. */

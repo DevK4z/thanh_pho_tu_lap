@@ -1,7 +1,7 @@
 /* Đồng hồ của phiên đang chạy: đếm ngược, câu kiểm tra hiện diện, giữ màn hình sáng.
    Việc phát hiện rời màn hình nằm ở useAntiCheat. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CHECK_SECONDS, type ActiveSession, type IssuedQuestion } from '@tptl/shared';
+import { ACTS, CHECK_SECONDS, STUDY_CHECK_SECONDS, type ActiveSession, type IssuedQuestion } from '@tptl/shared';
 import { api, errorMessage } from '../lib/api';
 
 export interface RunMeasures { awaySec: number; dist: number }
@@ -23,6 +23,8 @@ function checkTimes(n: number, plannedSec: number) {
  */
 export function useFocusRun(s: ActiveSession, onFinish: () => void, toast: (m: string) => void, isAway: () => boolean) {
   const endAt = s.startedAt + s.plannedSec * 1000;
+  // Được mở tài liệu: người học có thể đang ở ứng dụng khác nên có thêm thời gian quay lại.
+  const checkSec = ACTS[s.act].watch === 'checks' ? STUDY_CHECK_SECONDS : CHECK_SECONDS;
   const times = useMemo(() => checkTimes(s.checks.length, s.plannedSec), [s.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const st = useRef({ next: s.checksAnswered, qa: s.checksAnswered, qc: s.checksCorrect, done: false });
   const [now, setNow] = useState(Date.now());
@@ -66,7 +68,7 @@ export function useFocusRun(s: ActiveSession, onFinish: () => void, toast: (m: s
       const c = checkRef.current;
       if (c && t > c.deadline) answer(-1);
       else if (!c && !cb.current.isAway() && x.next < times.length && (t - s.startedAt) / 1000 >= times[x.next]) {
-        openCheck({ index: x.next, q: s.checks[x.next], deadline: t + CHECK_SECONDS * 1000 });
+        openCheck({ index: x.next, q: s.checks[x.next], deadline: t + checkSec * 1000 });
       }
     };
     const id = setInterval(tick, 500);

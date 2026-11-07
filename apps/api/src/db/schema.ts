@@ -29,6 +29,8 @@ export const groups = pgTable('groups', {
   name: text('name').notNull(),
   /** Tên chuẩn hóa (chữ thường, gộp khoảng trắng) để chặn trùng tên. */
   nameKey: text('name_key').notNull().unique(),
+  /** Mã mời vào nhóm; trưởng nhóm đổi được. */
+  inviteCode: text('invite_code').notNull().unique(),
   ownerId: uuid('owner_id').notNull().references((): AnyPgColumn => users.id),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
@@ -43,6 +45,7 @@ export const players = pgTable('players', {
   dailyGoal: integer('daily_goal').notNull(),
   totalFocusMin: integer('total_focus_min').notNull().default(0),
   unverifiedMin: integer('unverified_min').notNull().default(0),
+  participantCode: text('participant_code'),
   plot: jsonb('plot').$type<PlotItem[]>().notNull().default([]),
   pending: jsonb('pending').$type<PendingReward[]>().notNull().default([]),
   quitReasons: jsonb('quit_reasons').$type<Partial<Record<QuitReason, number>>>().notNull().default({}),
@@ -53,7 +56,11 @@ export const players = pgTable('players', {
   tasksFailed: integer('tasks_failed').notNull().default(0),
   createdAt: ts('created_at').notNull().defaultNow(),
   lastAt: ts('last_at'),
-}, (t) => [uniqueIndex('players_group_user_key').on(t.groupId, t.userId)]);
+}, (t) => [
+  uniqueIndex('players_group_user_key').on(t.groupId, t.userId),
+  // Mỗi mã cá nhân chỉ dùng một lần trong một nhóm (null thì không giới hạn).
+  uniqueIndex('players_group_code_key').on(t.groupId, t.participantCode),
+]);
 
 export const dayStats = pgTable('day_stats', {
   playerId: uuid('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),

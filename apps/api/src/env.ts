@@ -15,6 +15,8 @@ const schema = z.object({
   /** Khóa Gemini API để kiểm tra ảnh và câu hỏi nhớ lại. Để trống thì phiên ngoài màn hình ở trạng thái chưa xác minh. */
   GEMINI_API_KEY: z.string().optional().transform((v) => v || undefined),
   AI_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  /** admin: chỉ quản trị viên ứng dụng lập nhóm (mặc định); open: ai cũng lập được. */
+  GROUP_CREATION: z.enum(['admin', 'open']).default('admin'),
   NODE_ENV: z.string().default('development'),
 });
 export type Env = z.infer<typeof schema>;

@@ -1,0 +1,21 @@
+# Gọi API mỗi 10 phút để server miễn phí của Render không ngủ (ngủ sau 15 phút không có truy cập, mở lại mất khoảng 1 phút).
+# Một dịch vụ chạy cả tháng dùng khoảng 720 giờ, nằm trong 750 giờ miễn phí mỗi tháng của Render.
+# Lịch của GitHub có thể trễ vài phút; GitHub tự tắt lịch sau 60 ngày repo không có hoạt động.
+name: Giữ API thức
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Gọi /health
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then echo "Chưa đặt biến repo API_URL, bỏ qua."; exit 0; fi
+          curl -fsS --retry 3 --retry-delay 20 --max-time 90 "$API_URL/health"

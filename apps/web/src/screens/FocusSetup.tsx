@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ACTS, ACT_KEYS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, TIERS,
+  ACTS, ACT_KEYS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, STUDY_CHECK_SECONDS, TIERS,
   dkey, tierFor, type ActKey, type ActiveSession, type Player, type RecallDue,
 } from '@tptl/shared';
 import { Icon } from '../components/Icons';
@@ -14,6 +14,11 @@ const PREP = {
     'Điện thoại đã cất xa tầm tay và tắt âm',
     'Đã đóng các tab và ứng dụng không cần cho phiên này',
     `Tôi hiểu phiên chạy toàn màn hình; đổi tab, click ra ngoài hoặc thoát toàn màn hình quá ${GRACE_SECONDS} giây là thất bại và mất chuỗi`,
+  ],
+  checks: [
+    'Đã mở sẵn tài liệu cần dùng và đóng mạng xã hội, trò chơi',
+    'Đã bật âm lượng để nghe tiếng báo kiểm tra hiện diện',
+    `Tôi hiểu sẽ có câu kiểm tra hiện diện ngẫu nhiên và phải quay lại trả lời trong ${STUDY_CHECK_SECONDS} giây`,
   ],
   visible: [
     'Điện thoại đang bật Không làm phiền và còn đủ pin cho cả phiên',
@@ -29,6 +34,7 @@ const PREP = {
 
 const WATCH_LABEL = {
   fullscreen: 'Trên máy · toàn màn hình, giám sát rời màn hình',
+  checks: 'Trên máy · được mở tài liệu, có kiểm tra hiện diện',
   visible: 'Ngoài màn hình · giữ ứng dụng mở, màn hình sáng',
   none: 'Ngoài màn hình · cất điện thoại',
 };
@@ -42,7 +48,8 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
   const [busy, setBusy] = useState(false);
   const canFullscreen = fullscreenSupported();
   const a = ACTS[act];
-  const screenMode = a.mode === 'screen';
+  // Chỉ chế độ tập trung tuyệt đối cần toàn màn hình.
+  const screenMode = a.watch === 'fullscreen';
   const min = Number(dur) || 0;
   const tier = tierFor(min);
   const validDur = Number.isInteger(min) && min >= MIN_MINUTES && min <= MAX_MINUTES;
@@ -52,6 +59,8 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
   async function begin() {
     if (!validDur) { toast(`Thời gian cam kết cần từ ${MIN_MINUTES} đến ${MAX_MINUTES} phút.`); return; }
     setBusy(true);
+    // Xin quyền thông báo ngay trong cú bấm, để câu kiểm tra hiện diện báo được cả khi đang ở ứng dụng khác.
+    if (a.watch === 'checks' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
     // Bật toàn màn hình trước, ngay trong cú bấm của người dùng (trình duyệt chỉ cho phép lúc này).
     if (screenMode) {
       try {

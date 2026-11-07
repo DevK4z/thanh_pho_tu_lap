@@ -155,7 +155,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       const qa = chk.qa + q.verify.length;
       const qc = chk.qc + q.verify.filter((v) => v.ans === v.a).length;
       const activeSec = s.plannedSec;
-      const watched = ACTS[s.act].watch !== 'none';
+      const watched = ACTS[s.act].watch === 'fullscreen' || ACTS[s.act].watch === 'visible';
       const awaySec = watched ? Math.round(Math.min(body.awaySec, activeSec)) : 0;
       const dist = watched ? body.dist : 0;
       const focus = scoreSession({ mode: s.mode, activeSec, awaySec, distractions: dist, missed: chk.missed, qa, qc, self: body.self });
@@ -209,7 +209,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       // Phiên bị đóng giữa chừng không biết đã làm bao lâu nên không tính thời gian thực hiện.
       const activeSec = honest ? Math.round(s.plannedSec / 2) : reason === 'closed' ? 0 : Math.max(0, Math.min(s.plannedSec, Math.round((now - s.startedAt.getTime()) / 1000)));
       const chk = answeredStats(s.questions);
-      const watched = ACTS[s.act].watch !== 'none';
+      const watched = ACTS[s.act].watch === 'fullscreen' || ACTS[s.act].watch === 'visible';
       const awaySec = watched ? Math.round(Math.min(body.awaySec, s.plannedSec)) : 0;
       const dist = watched ? body.dist : 0;
       await tx.update(focusSessions).set({ status: 'quit', reason, endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa: chk.qa, qc: chk.qc }).where(eq(focusSessions.id, sid));

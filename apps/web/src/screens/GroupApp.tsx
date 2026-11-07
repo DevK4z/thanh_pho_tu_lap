@@ -47,7 +47,8 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     const a = d.active;
     if (!a || flow) return;
     const over = Date.now() >= a.startedAt + a.plannedSec * 1000;
-    if (ACTS[a.act].watch !== 'none' && !(over && a.proof.status !== 'none')) {
+    const watched = ACTS[a.act].watch === 'fullscreen' || ACTS[a.act].watch === 'visible';
+    if (watched && !(over && a.proof.status !== 'none')) {
       api('POST', `/sessions/${a.id}/quit`, { reason: 'closed', awaySec: 0, dist: 0 })
         .then(() => { toast('Phiên trước bị đóng giữa chừng nên được tính là thất bại.'); refresh(); })
         .catch((e) => toast(errorMessage(e)));

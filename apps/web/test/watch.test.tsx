@@ -104,6 +104,19 @@ describe('phiên đọc sách, chăm cây', () => {
   });
 });
 
+describe('học trên máy', () => {
+  it('được đổi tab, mở ứng dụng khác: không cảnh báo, không thất bại, không bắt úp điện thoại', async () => {
+    const { onFailed } = mount(session('study', 'screen'));
+    expect(screen.getByText(/Bạn được mở tài liệu/)).toBeTruthy();
+    expect(screen.queryByText('Giữ ứng dụng mở và úp điện thoại xuống.')).toBeNull();
+    setHidden(true);
+    fireEvent.blur(window);
+    await tick(10_000);
+    expect(screen.queryByText('Bạn đang rời khỏi phiên!')).toBeNull();
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+});
+
 describe('vận động', () => {
   it('không giám sát: thoát ứng dụng vẫn chạy tiếp đến hết giờ', async () => {
     const { onFinish, onFailed } = mount(session('move'));

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DAILY_GOALS, HKEYS, HST, LIMITS, type HouseStyle, type Player } from '@tptl/shared';
+import { DAILY_GOALS, HKEYS, HST, LIMITS, PARTICIPANT_RE, type HouseStyle, type Player } from '@tptl/shared';
 import { House } from '../components/Svg';
 import { Button, Card, Chip, Eyebrow, Field, Grid, inputCls, Option, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
@@ -11,14 +11,17 @@ export function Onboard({ gid, defaultName, onCreated }: { gid: string; defaultN
   const [name, setName] = useState(defaultName);
   const [style, setStyle] = useState<HouseStyle>('san');
   const [goal, setGoal] = useState(30);
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function create() {
     const n = name.trim();
     if (!n) { toast('Hãy nhập tên hiển thị.'); return; }
+    const pc = code.trim().toUpperCase();
+    if (!PARTICIPANT_RE.test(pc)) { toast('Hãy nhập mã cá nhân thầy cô cấp (chữ không dấu, số, dấu gạch), ví dụ T0-015.'); return; }
     setBusy(true);
     try {
-      patch(await api<Player>('POST', `/groups/${gid}/players`, { name: n, style, dailyGoal: goal }));
+      patch(await api<Player>('POST', `/groups/${gid}/players`, { name: n, style, dailyGoal: goal, participantCode: pc }));
       onCreated();
     } catch (e) { toast(errorMessage(e)); }
     setBusy(false);
@@ -34,6 +37,10 @@ export function Onboard({ gid, defaultName, onCreated }: { gid: string; defaultN
       <Field label="Tên hiển thị trong nhóm">
         <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} maxLength={LIMITS.userName} placeholder="Tên hoặc biệt danh" />
       </Field>
+      <Field label="Mã cá nhân">
+        <input className={inputCls + ' max-w-[220px] uppercase'} value={code} onChange={(e) => setCode(e.target.value)} maxLength={LIMITS.participantCode} placeholder="VD: T0-015" autoComplete="off" />
+      </Field>
+      <p className="-mt-2 text-[13px] text-muted">Mã do thầy cô cấp, dùng để ghép kết quả với phiếu khảo sát. Nhập sai thì nhờ trưởng nhóm sửa.</p>
       <div>
         <Eyebrow className="mb-2">Kiểu nhà</Eyebrow>
         <Grid>

@@ -1,7 +1,7 @@
 /* Báo cáo cho quản trị viên ứng dụng: tỷ lệ hoàn thành và bỏ cuộc của từng người ở mọi nhóm. */
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { dkey, type AdminReport as Report, type AdminReportRow } from '@tptl/shared';
+import { dkey, type AdminReport as Report, type AdminReportRow, type FullExport } from '@tptl/shared';
 import { BigNumber, Button, Card, Chip, Eyebrow, Grid, inputCls, Muted, Pill, tableCls as t, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
 import { useGroupMembership } from '../lib/queries';
@@ -12,9 +12,9 @@ const PROVIDER = { google: 'Google', facebook: 'Facebook', guest: 'Khách' } as 
 type SortKey = 'group' | 'completion' | 'quit' | 'registered';
 
 function exportCSV(r: Report) {
-  const head = ['Tên', 'Nhóm', 'Đăng nhập', 'Email', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Đang chạy', 'Tỷ lệ hoàn thành', 'Tỷ lệ bỏ cuộc', 'Phút đăng ký', 'Phút hoàn thành', 'Tỷ lệ thời gian', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Ngày tham gia', 'Hoạt động gần nhất'];
+  const head = ['Mã cá nhân', 'Tên', 'Nhóm', 'Đăng nhập', 'Email', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Đang chạy', 'Tỷ lệ hoàn thành', 'Tỷ lệ bỏ cuộc', 'Phút đăng ký', 'Phút hoàn thành', 'Tỷ lệ thời gian', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Ngày tham gia', 'Hoạt động gần nhất'];
   const p = (v: number | null) => (v == null ? '' : Math.round(v * 1000) / 10 + '%');
-  const rows = r.rows.map((x) => [x.name, x.groupName, PROVIDER[x.provider], x.email ?? '', x.registered, x.done, x.failed, x.active, p(x.completionRate), p(x.quitRate), x.plannedMin, x.doneMin, p(x.timeRate), x.currentStreak, x.bestStreak, dkey(x.createdAt), x.lastAt ? dkey(x.lastAt) : '']);
+  const rows = r.rows.map((x) => [x.participantCode ?? '', x.name, x.groupName, PROVIDER[x.provider], x.email ?? '', x.registered, x.done, x.failed, x.active, p(x.completionRate), p(x.quitRate), x.plannedMin, x.doneMin, p(x.timeRate), x.currentStreak, x.bestStreak, dkey(x.createdAt), x.lastAt ? dkey(x.lastAt) : '']);
   const csv = '﻿' + [head, ...rows].map((row) => row.map((c) => { const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -22,6 +22,18 @@ function exportCSV(r: Report) {
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+/** Sao lưu: gói miễn phí của Neon chỉ giữ lịch sử khôi phục 6 giờ, nên nên tải về định kỳ. */
+async function downloadAll() {
+  const data = await api<FullExport>('GET', '/admin/export');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
+  a.download = `thanh-pho-tu-lap-du-lieu-${dkey(Date.now())}.json`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  return data;
 }
 
 /** Tỷ lệ kèm thanh nhỏ; tô màu theo ngưỡng giống bảng nhóm (hoàn thành từ 75% là tốt, bỏ cuộc trên 20% là cần chú ý). */
@@ -70,6 +82,7 @@ export function AdminReport({ onBack }: { onBack: () => void }) {
         <div><Eyebrow>Dành cho quản trị viên ứng dụng · mọi nhóm</Eyebrow><h2>Báo cáo hoàn thành nhiệm vụ</h2></div>
         <div className="flex flex-wrap gap-2.5">
           <Button onClick={onBack}>← Về ứng dụng</Button>
+          <Button onClick={() => downloadAll().then((d) => toast(`Đã tải toàn bộ dữ liệu: ${d.players.length} thành viên, ${d.sessions.length} phiên.`), (e) => toast(errorMessage(e)))}>Tải toàn bộ dữ liệu (JSON)</Button>
           <Button variant="primary" disabled={!r} onClick={() => { exportCSV(r!); toast('Đã tải file CSV.'); }}>Xuất CSV</Button>
         </div>
       </div>
@@ -107,7 +120,7 @@ export function AdminReport({ onBack }: { onBack: () => void }) {
                 <tbody>
                   {rows.map((x) => (
                     <tr key={x.playerId}>
-                      <td className={t.td}><b>{x.name}</b> <Pill>{PROVIDER[x.provider]}</Pill>{x.email && <div className="text-xs text-muted">{x.email}</div>}</td>
+                      <td className={t.td}><b>{x.name}</b> <Pill>{PROVIDER[x.provider]}</Pill><div className="text-xs text-muted">Mã: {x.participantCode ?? 'chưa có'}</div>{x.email && <div className="text-xs text-muted">{x.email}</div>}</td>
                       <td className={t.td}><button type="button" className="font-semibold text-pine underline underline-offset-2" disabled={join.isPending} onClick={() => openGroup(x.groupId, x.groupName)} title="Mở nhóm này để quản trị">{x.groupName}</button></td>
                       <td className={t.td}>{x.registered}{x.active ? <span className="text-muted"> ({x.active} đang chạy)</span> : ''}</td>
                       <td className={t.td}>{x.done}</td>

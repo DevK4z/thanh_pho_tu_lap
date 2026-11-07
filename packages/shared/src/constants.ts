@@ -1,12 +1,12 @@
 /* Dữ liệu cố định của game, dùng chung cho API và giao diện. */
 
-export type ActKey = 'read' | 'deep' | 'write' | 'move' | 'plant';
+export type ActKey = 'read' | 'study' | 'deep' | 'write' | 'move' | 'plant';
 export type Mode = 'screen' | 'offline';
 
 export interface Activity {
   n: string;
   mode: Mode;
-  /** Cách giám sát: toàn màn hình; giữ ứng dụng mở và màn hình sáng; không giám sát (cất máy đi). */
+  /** Cách giám sát: toàn màn hình; giữ ứng dụng mở và màn hình sáng; chỉ câu kiểm tra hiện diện (được mở tài liệu); không giám sát (cất máy đi). */
   watch: Watch;
   /** Mô tả ngắn hiển thị khi chọn hoạt động. */
   d: string;
@@ -17,22 +17,25 @@ export interface Activity {
   needNote: boolean;
 }
 
-export type Watch = 'fullscreen' | 'visible' | 'none';
+export type Watch = 'fullscreen' | 'visible' | 'checks' | 'none';
 
 export const ACTS: Record<ActKey, Activity> = {
   read: { n: 'Đọc sách giấy', mode: 'offline', watch: 'visible', d: 'Giữ ứng dụng mở, úp điện thoại xuống và đọc sách giấy. Hết giờ trả lời câu hỏi xác nhận.', gl: 'Sách và phần sẽ đọc', ph: 'Tên sách, chương hoặc số trang', needNote: true },
-  deep: { n: 'Học sâu trên máy', mode: 'screen', watch: 'fullscreen', d: 'Học hoặc làm bài trên máy tính. Rời trang sẽ được ghi nhận là xao nhãng.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
+  study: { n: 'Học trên máy', mode: 'screen', watch: 'checks', d: 'Học bằng tài liệu trên máy: được mở Word, PDF, trang tra cứu. Thỉnh thoảng có câu kiểm tra hiện diện; máy sẽ kêu để bạn quay lại trả lời trong 90 giây. Cuối phiên ghi lại việc đã làm được.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong đề cương môn Sử', needNote: true },
+  deep: { n: 'Tập trung tuyệt đối', mode: 'screen', watch: 'fullscreen', d: 'Chỉ dùng khi học ngay trong trang web này: chạy toàn màn hình, đổi tab hoặc mở ứng dụng khác quá 3 giây là thất bại.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
   write: { n: 'Viết và suy ngẫm', mode: 'screen', watch: 'fullscreen', d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
   move: { n: 'Vận động', mode: 'offline', watch: 'none', d: 'Chạy bộ, tập thể dục, đạp xe. Cất điện thoại và quay lại khi hết giờ.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
   plant: { n: 'Chăm cây', mode: 'offline', watch: 'visible', d: 'Trồng, tưới, tỉa cây. Giữ ứng dụng mở, đặt điện thoại gần đó cho đến khi hết giờ.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
 };
-export const ACT_KEYS: ActKey[] = ['read', 'deep', 'write', 'move', 'plant'];
+export const ACT_KEYS: ActKey[] = ['read', 'study', 'deep', 'write', 'move', 'plant'];
 
 export const DURS = [5, 10, 15, 25, 45, 60, 90];
 export const MIN_MINUTES = 5;
 export const MAX_MINUTES = 180;
 export const MIN_NOTE_WORDS = 6;
 export const CHECK_SECONDS = 45;
+/** Phiên được mở tài liệu: người học đang ở ứng dụng khác nên cần thêm thời gian quay lại trả lời. */
+export const STUDY_CHECK_SECONDS = 90;
 
 export interface Tier { t: number; min: number; n: string }
 export const TIERS: Tier[] = [
@@ -106,6 +109,7 @@ export const MIN_RECALL_WORDS = 4;
 /** Vật cần chụp cạnh mã thử thách. */
 export const PROOF_THING: Record<ActKey, string> = {
   read: 'trang sách đang đọc (thấy rõ chữ in trên trang)',
+  study: 'vở, bản nháp hoặc màn hình có bài vừa làm',
   deep: 'vở nháp hoặc bài vừa làm',
   write: 'trang viết hoặc màn hình bài vừa viết',
   move: 'giày, dụng cụ tập hoặc nơi vừa tập',
@@ -117,7 +121,13 @@ export const GN = 7;
 export const SLOTS: [number, number][] = [];
 for (let r = 0; r < GN; r++) for (let c = 0; c < GN; c++) if (r !== 3 && c !== 3 && !(r === 1 && c === 1)) SLOTS.push([r, c]);
 
-export const LIMITS = { userName: 24, groupName: 40, goal: 120, note: 400, question: 200, option: 120, recallAnswer: 500 };
+export const LIMITS = { userName: 24, groupName: 40, goal: 120, note: 400, question: 200, option: 120, recallAnswer: 500, participantCode: 20 }
+/** Mã cá nhân của người tham gia thực nghiệm (ví dụ T0-015): chữ, số, gạch ngang, gạch dưới, dấu chấm. */
+export const PARTICIPANT_RE = /^[A-Z0-9][A-Z0-9_.-]{0,19}$/;
+/** Mã mời vào nhóm: 6 ký tự, bỏ các ký tự dễ nhầm (0/O, 1/I/L). */
+export const INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const INVITE_LENGTH = 6;
+export const normalizeCode = (s: string) => s.toUpperCase().replace(/[\s-]/g, '');;
 
 /** Số câu kiểm tra hiện diện trong một phiên trên máy: 1 câu mỗi 10 phút, từ 1 đến 6. */
 export function checkCount(mode: Mode, plannedSec: number): number {

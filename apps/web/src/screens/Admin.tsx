@@ -6,15 +6,16 @@ import { api, errorMessage } from '../lib/api';
 import { dmy, num, pct } from '../lib/format';
 import { qk, useLogs, useQuestions } from '../lib/queries';
 import { GrantTool } from './GrantTool';
+import { GroupAccessCard } from './GroupAccessCard';
 import { LogTable } from './LogTable';
 import { SpotCard } from './SpotCard';
 
 function exportCSV(d: GroupDetail) {
   const keys = keysBack(365), k7 = keysBack(7);
-  const rows: (string | number)[][] = [['Tên', 'Ngày tham gia', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Phiên thành công (tổng)', 'Phiên thất bại (tổng)', 'Tổng phút tập trung', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Tỷ lệ hoàn thành', 'Lần rời trang', 'Không phản hồi', 'Trả lời đúng', 'Điểm tập trung TB', 'Điểm kỷ luật 7 ngày', 'Hoạt động gần nhất']];
+  const rows: (string | number)[][] = [['Mã cá nhân', 'Tên', 'Ngày tham gia', 'Chuỗi hiện tại', 'Chuỗi dài nhất', 'Phiên thành công (tổng)', 'Phiên thất bại (tổng)', 'Tổng phút tập trung', 'Phiên đăng ký', 'Hoàn thành', 'Bỏ cuộc', 'Tỷ lệ hoàn thành', 'Lần rời trang', 'Không phản hồi', 'Trả lời đúng', 'Điểm tập trung TB', 'Điểm kỷ luật 7 ngày', 'Hoạt động gần nhất']];
   for (const p of d.players) {
     const a = metrics(sumDays(p.days, keys), 365, p.createdAt), w = metrics(sumDays(p.days, k7), 7, p.createdAt);
-    rows.push([p.name, dkey(p.createdAt), p.currentStreak, p.bestStreak, p.tasksDone, p.tasksFailed, p.totalFocusMin, a.s, a.c, a.q, a.comp == null ? '' : Math.round(a.comp * 100) + '%', a.dn, a.ms, a.quiz == null ? '' : Math.round(a.quiz * 100) + '%', a.focus ?? '', w.disc ?? '', p.lastAt ? dkey(p.lastAt) : '']);
+    rows.push([p.participantCode ?? '', p.name, dkey(p.createdAt), p.currentStreak, p.bestStreak, p.tasksDone, p.tasksFailed, p.totalFocusMin, a.s, a.c, a.q, a.comp == null ? '' : Math.round(a.comp * 100) + '%', a.dn, a.ms, a.quiz == null ? '' : Math.round(a.quiz * 100) + '%', a.focus ?? '', w.disc ?? '', p.lastAt ? dkey(p.lastAt) : '']);
   }
   const csv = '﻿' + rows.map((r) => r.map((c) => { const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   const a = document.createElement('a');
@@ -65,6 +66,7 @@ export function Admin({ gid, detail, isAppAdmin, onOpenReward }: { gid: string; 
         <div><Eyebrow>{detail.isOwner ? 'Dành cho trưởng nhóm' : 'Quản trị viên ứng dụng · trưởng nhóm: ' + detail.group.ownerName}</Eyebrow><h2>Quản trị nhóm {detail.group.name}</h2></div>
         <Button onClick={() => { exportCSV(detail); toast('Đã tải file CSV.'); }}>Xuất CSV</Button>
       </div>
+      <GroupAccessCard gid={gid} detail={detail} />
       {isAppAdmin && <GrantTool gid={gid} detail={detail} onOpenReward={onOpenReward} />}
       <SpotCard gid={gid} />
       <Card>
@@ -79,7 +81,7 @@ export function Admin({ gid, detail, isAppAdmin, onOpenReward }: { gid: string; 
                 const risk = !m.s || (m.comp != null && m.comp < 0.5);
                 return (
                   <tr key={p.id} className="cursor-pointer hover:[&>td]:bg-surface2" onClick={() => setSel(p.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setSel(p.id)}>
-                    <td className={t.td}>{p.name}{risk && <> <Pill tone="warn">Cần chú ý</Pill></>}</td>
+                    <td className={t.td}>{p.name}{risk && <> <Pill tone="warn">Cần chú ý</Pill></>}<div className="text-xs text-muted">{p.participantCode ?? 'chưa có mã'}</div></td>
                     <td className={t.td}>{p.currentStreak}</td><td className={t.td}>{p.tasksDone}/{p.tasksFailed}</td>
                     <td className={t.td}>{Math.round(m.cs / 60)}</td><td className={t.td}>{m.s}</td><td className={t.td}>{pct(m.comp)}</td><td className={t.td}>{m.q}</td>
                     <td className={t.td}>{m.dn + m.ms}</td><td className={t.td}>{num(m.focus)}</td><td className={t.td}>{num(m.disc)}</td><td className={t.td}>{num(trustOf(m))}</td>

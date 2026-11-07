@@ -16,6 +16,7 @@ let server: FastifyInstance;
 let database: Database;
 const realNow = Date.now.bind(Date);
 let shift = 0;
+let inviteCode = '';
 let App: typeof import('../src/App').App;
 let ToastProvider: typeof import('../src/components/ui').ToastProvider;
 
@@ -32,7 +33,7 @@ function installFullscreen() {
 
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: resolve(__dirname, '../../api/drizzle') });
-  server = await buildApp({ db: database.db, env: loadEnv({ ADMIN_EMAILS: 'quantri@example.com' }), rateLimit: false });
+  server = await buildApp({ db: database.db, env: loadEnv({ ADMIN_EMAILS: 'quantri@example.com', GROUP_CREATION: 'open' }), rateLimit: false });
   await server.listen({ port: 0, host: '127.0.0.1' });
   vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:' + (server.server.address() as AddressInfo).port);
   vi.spyOn(Date, 'now').mockImplementation(() => realNow() + shift);
@@ -70,9 +71,8 @@ describe('giao diện + API', () => {
     type('Tên của bạn', 'An');
     fireEvent.click(btn('Vào với tên này'));
 
-    await find('Chọn nhóm');
-    await find('Chưa có nhóm nào. Hãy lập nhóm đầu tiên.');
-    expect(btn('Tham gia nhóm')).toHaveProperty('disabled', true);
+    await find('Nhập mã mời');
+    expect(btn('Vào nhóm')).toHaveProperty('disabled', true);
     type('Tên nhóm', 'Lớp 10A1');
     fireEvent.click(btn('Lập nhóm'));
 
@@ -81,17 +81,20 @@ describe('giao diện + API', () => {
     expect(screen.getByText(/Nhóm Lớp 10A1/)).toBeTruthy();
     expect(tab('Quản trị')).toBeTruthy();
     fireEvent.click(btn('Bắt đầu xây thành phố'));
+    await find(/Hãy nhập mã cá nhân/);
+    type('Mã cá nhân', 't0-001');
+    fireEvent.click(btn('Bắt đầu xây thành phố'));
     await find('Thành phố của An');
     await find('Khu phố Lớp 10A1');
 
     fireEvent.click(tab('Tập trung'));
     await find('Cam kết trước, tập trung sau');
     // Đủ 5 hoạt động; hoạt động ngoài màn hình không cần toàn màn hình.
-    for (const n of [/Đọc sách giấy/, /Học sâu trên máy/, /Viết và suy ngẫm/, /Vận động/, /Chăm cây/]) expect(btn(n)).toBeTruthy();
+    for (const n of [/Đọc sách giấy/, /Học trên máy/, /Tập trung tuyệt đối/, /Viết và suy ngẫm/, /Vận động/, /Chăm cây/]) expect(btn(n)).toBeTruthy();
     fireEvent.click(btn(/Đọc sách giấy/));
     expect(btn(/Cam kết 25 phút và bắt đầu/)).toBeTruthy();
     await screen.findByText('Hoàn thành phiên này để nâng chuỗi lên 1 và nhận một công trình. Một phiên thất bại sẽ đưa chuỗi về 0.');
-    fireEvent.click(btn(/Học sâu trên máy/));
+    fireEvent.click(btn(/Tập trung tuyệt đối/));
     fireEvent.click(btn('5 phút'));
     const begin = btn(/Vào toàn màn hình và bắt đầu 5 phút/);
     expect(begin).toHaveProperty('disabled', true);
@@ -173,6 +176,9 @@ describe('giao diện + API', () => {
     // Trưởng nhóm thường có tab Quản trị nhưng không có công cụ cấp phát.
     fireEvent.click(tab('Quản trị'));
     await find('Quản trị nhóm Lớp 10A1');
+    inviteCode = screen.getByLabelText('Mã mời').textContent!;
+    expect(inviteCode).toMatch(/^[A-Z2-9]{6}$/);
+    expect(screen.getByLabelText('Mã cá nhân của An')).toHaveProperty('value', 'T0-001');
     // Kiểm tra trực tiếp: trưởng nhóm không thấy phiên được bốc của chính mình.
     await find('Chưa bốc thăm lần nào.');
     fireEvent.click(btn('Bốc thăm tuần này'));
@@ -196,13 +202,19 @@ describe('giao diện + API', () => {
     await find('Vào thành phố của bạn');
     type('Tên của bạn', 'Bình');
     fireEvent.click(btn('Vào với tên này'));
-    await find('Chọn một trong 1 nhóm đang hoạt động.');
-    const join = btn('Tham gia nhóm');
-    expect(join).toHaveProperty('disabled', true);
-    fireEvent.click(btn(/Lớp 10A1/));
-    expect(join).toHaveProperty('disabled', false);
-    fireEvent.click(join);
+    await find('Nhập mã mời');
+    // Người thường không thấy danh sách nhóm và không lập được nhóm khi máy chủ không cho.
+    expect(screen.queryByText(/Lớp 10A1/)).toBeNull();
+    type('Mã mời', 'SAIMA9');
+    fireEvent.click(btn('Vào nhóm'));
+    await find(/Mã mời không đúng/);
+    type('Mã mời', inviteCode.toLowerCase());
+    fireEvent.click(btn('Vào nhóm'));
     await find('Chọn khu đất đầu tiên');
+    type('Mã cá nhân', 'T0-001');
+    fireEvent.click(btn('Bắt đầu xây thành phố'));
+    await find(/Mã cá nhân T0-001 đã có người dùng/);
+    type('Mã cá nhân', 'T0-002');
     expect(screen.queryByRole('button', { name: 'Quản trị' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Báo cáo' })).toBeNull();
     fireEvent.click(btn('Bắt đầu xây thành phố'));
@@ -215,7 +227,7 @@ describe('giao diện + API', () => {
     expect(screen.queryByRole('dialog', { name: 'Thành phố của An' })).toBeNull();
 
     fireEvent.click(btn('Đổi nhóm'));
-    await find('Chọn nhóm');
+    await find('Nhập mã mời');
     await find('Đã rời nhóm. Tiến độ trong nhóm cũ vẫn được giữ.');
   }, 30_000);
 
@@ -228,7 +240,7 @@ describe('giao diện + API', () => {
     await database.db.update(users).set({ provider: 'google', email: 'QuanTri@example.com' }).where(eq(users.id, r.me.id));
     localStorage.setItem('tptl-token', r.token);
     mount();
-    await find('Chọn nhóm');
+    await find('Tất cả nhóm');
     fireEvent.click(btn('Báo cáo'));
     await find('Báo cáo hoàn thành nhiệm vụ');
     await find('An');
@@ -263,6 +275,7 @@ describe('giao diện + API', () => {
     // Tự tạo nhà, cấp cho chính mình 1 phần thưởng hạng Hiếm rồi đặt Tháp quan sát từ kho.
     fireEvent.click(tab('Thành phố'));
     await find('Chọn khu đất đầu tiên');
+    type('Mã cá nhân', 'GV-01');
     fireEvent.click(btn('Bắt đầu xây thành phố'));
     await find('Thành phố của Quản trị');
     fireEvent.click(tab('Quản trị'));

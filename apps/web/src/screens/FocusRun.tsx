@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { ACTS, GRACE_SECONDS, REASONS, USER_REASON_KEYS, type ActiveSession, type Me, type QuitReason, type QuitResult, type TaskStats } from '@tptl/shared';
+import { useEffect, useRef, useState } from 'react';
+import { ACTS, GRACE_SECONDS, REASONS, STUDY_CHECK_SECONDS, USER_REASON_KEYS, VERIFY_FOCUS, type ActiveSession, type Me, type QuitReason, type QuitResult, type TaskStats } from '@tptl/shared';
 import { Banner, Button, Card, Chip, Eyebrow, Modal, Option, Stat3, useToast } from '../components/ui';
 import { CAUSE_LABEL, enterFullscreen, exitFullscreen, useAntiCheat, type Cause, type Warning } from '../focus/useAntiCheat';
 import { useFocusRun, type RunMeasures } from '../focus/useFocusRun';
@@ -18,6 +18,20 @@ export interface FailInfo {
   log: Warning[];
   lostStreak: number;
   stats: TaskStats | null;
+}
+
+/** Tiếng bíp ngắn: người dùng đã bấm bắt đầu phiên nên trình duyệt cho phép phát âm thanh. */
+function beep() {
+  try {
+    const ctx = new AudioContext();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880;
+    g.gain.value = 0.15;
+    o.connect(g).connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.35);
+    setTimeout(() => ctx.close().catch(() => {}), 800);
+  } catch { /* không phát được âm thanh thì vẫn còn tab nhấp nháy */ }
 }
 
 const clock = (ms: number) => new Date(ms).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -46,7 +60,9 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
   const [busy, setBusy] = useState(false);
   const a = ACTS[s.act];
   const fullscreen = a.watch === 'fullscreen';
-  const watched = a.watch !== 'none';
+  const studying = a.watch === 'checks';
+  // Học trên máy chỉ có câu kiểm tra hiện diện: được đổi tab, mở ứng dụng khác nên không giám sát rời trang.
+  const watched = a.watch === 'fullscreen' || a.watch === 'visible';
   const stopRun = useRef<() => void>(() => {});
 
   /** Gửi kết quả thất bại lên máy chủ rồi chuyển sang màn thất bại. */
@@ -84,6 +100,30 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
     await fail({ kind: 'quit', reason, log: ac.log }, ac.measures());
   }
 
+  // Học trên máy: có câu kiểm tra mà người học đang ở ứng dụng khác thì kêu, nhấp nháy tiêu đề tab và hiện thông báo hệ thống.
+  useEffect(() => {
+    if (!studying || !run.check) return;
+    const title = document.title;
+    const away = () => document.hidden || !document.hasFocus();
+    let note: Notification | null = null;
+    if (away()) {
+      beep();
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          note = new Notification('Kiểm tra hiện diện', { body: `Quay lại trả lời trong ${STUDY_CHECK_SECONDS} giây.`, tag: 'tptl-check', requireInteraction: true });
+          note.onclick = () => { window.focus(); note?.close(); };
+        } catch { /* một số trình duyệt chỉ cho thông báo qua service worker */ }
+      }
+    }
+    let k = 0;
+    const id = setInterval(() => {
+      k++;
+      document.title = k % 2 ? '🔔 Kiểm tra hiện diện!' : title;
+      if (k % 15 === 0 && away()) beep();
+    }, 1000);
+    return () => { clearInterval(id); document.title = title; note?.close(); };
+  }, [studying, run.check?.index]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const left = Math.ceil(ac.graceLeft);
   return (
     <Card as="section" className="items-center text-center">
@@ -111,6 +151,14 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
             <Eyebrow className="mb-1.5 text-left">Nhật ký cảnh báo</Eyebrow>
             <WarningLog log={ac.log} />
           </div>
+        </div>
+      ) : studying ? (
+        <div className="flex w-full max-w-xl flex-col gap-3">
+          <p className="text-muted">
+            <b>Bạn được mở tài liệu, Word, PDF hay trang tra cứu.</b> Thỉnh thoảng sẽ có câu kiểm tra hiện diện: máy kêu, tab nhấp nháy và hiện thông báo;
+            quay lại trả lời trong {STUDY_CHECK_SECONDS} giây. Không phản hồi bị trừ điểm tập trung; dưới {VERIFY_FOCUS} điểm thì phiên chưa xác minh.
+          </p>
+          <Stat3 items={[[run.qc + '/' + run.qa, 'câu kiểm tra đúng'], [hm(s.startedAt + s.plannedSec * 1000), 'hết giờ lúc'], [Math.max(0, s.checks.length - run.qa), 'câu còn lại']]} />
         </div>
       ) : (
         <Banner className="text-left">

@@ -18,7 +18,7 @@ beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });
   app = await buildApp({
     db: database.db,
-    env: loadEnv({ ADMIN_EMAILS: ' Boss-Account@Example.com , khac@example.com' }),
+    env: loadEnv({ ADMIN_EMAILS: ' Boss-Account@Example.com , khac@example.com', GROUP_CREATION: 'open' }),
     rateLimit: false,
     verifiers: {
       google: async (cred) => {
@@ -76,7 +76,7 @@ describe('đăng nhập', () => {
 
   it('Facebook chưa cấu hình thì báo 501, /config phản ánh đúng', async () => {
     expect((await call('POST', '/auth/facebook', undefined, { accessToken: 'abcdefghijklmn' })).status).toBe(501);
-    expect((await call('GET', '/config')).body).toEqual({ google: 'test', facebook: null });
+    expect((await call('GET', '/config')).body).toEqual({ google: 'test', facebook: null, groupCreation: 'open' });
   });
 
   it('đăng xuất làm token hết hiệu lực', async () => {
@@ -89,7 +89,7 @@ describe('đăng nhập', () => {
 describe('luồng nhóm và phiên tập trung', () => {
   let A: { token: string; me: Me };
   let B: { token: string; me: Me };
-  let gid: string;
+  let gid: string, invite = '';
   let aPid: string;
   let bPid: string;
 
@@ -108,22 +108,28 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect(dup.body.error.code).toBe('group_name_taken');
   });
 
-  it('danh sách nhóm và tham gia', async () => {
-    const list = (await call('GET', '/groups', B.token)).body as GroupSummary[];
-    const g = list.find((x) => x.id === gid)!;
-    expect(g).toMatchObject({ name: 'Lớp 10A1', ownerName: 'An', members: 0 });
+  it('vào nhóm bằng mã mời; người thường không thấy danh sách nhóm', async () => {
+    expect((await call('GET', '/groups', B.token)).body as GroupSummary[]).toEqual([]);
     expect((await call('GET', '/groups/' + gid, B.token)).status).toBe(403);
-    expect((await call('POST', '/groups/00000000-0000-0000-0000-000000000000/join', B.token)).status).toBe(404);
-    expect((await call('POST', `/groups/${gid}/join`, B.token)).body.currentGroupId).toBe(gid);
+    expect((await call('POST', `/groups/${gid}/join`, B.token)).body.error.code).toBe('invite_required');
+    invite = ((await call('GET', '/groups/' + gid, A.token)).body as GroupDetail).group.inviteCode!;
+    expect(invite).toMatch(/^[A-Z2-9]{6}$/);
+    expect((await call('POST', '/groups/join', B.token, { code: 'ZZZZZZ' })).body.error.code).toBe('invite_invalid');
+    // Gõ chữ thường, có khoảng trắng vẫn nhận.
+    expect((await call('POST', '/groups/join', B.token, { code: ' ' + invite.toLowerCase().slice(0, 3) + ' ' + invite.slice(3) })).body.currentGroupId).toBe(gid);
+    expect(((await call('GET', '/groups/' + gid, B.token)).body as GroupDetail).group.inviteCode).toBeNull();
   });
 
   it('tạo nhà một lần mỗi nhóm', async () => {
-    const r = await call('POST', `/groups/${gid}/players`, A.token, { name: 'An', style: 'ngoi', dailyGoal: 30 });
+    expect((await call('POST', `/groups/${gid}/players`, A.token, { name: 'An', style: 'ngoi', dailyGoal: 30 })).status).toBe(400);
+    const r = await call('POST', `/groups/${gid}/players`, A.token, { name: 'An', style: 'ngoi', dailyGoal: 30, participantCode: 't0-001' });
     expect(r.status).toBe(201);
     aPid = r.body.id;
-    expect((await call('POST', `/groups/${gid}/players`, A.token, { name: 'An', style: 'ngoi', dailyGoal: 30 })).status).toBe(409);
-    expect((await call('POST', `/groups/${gid}/players`, B.token, { name: 'Bình', style: 'xxx', dailyGoal: 30 })).status).toBe(400);
-    bPid = (await call('POST', `/groups/${gid}/players`, B.token, { name: 'Bình', style: 'da', dailyGoal: 45 })).body.id;
+    expect(r.body.participantCode).toBe('T0-001');
+    expect((await call('POST', `/groups/${gid}/players`, A.token, { name: 'An', style: 'ngoi', dailyGoal: 30, participantCode: 'T0-009' })).status).toBe(409);
+    expect((await call('POST', `/groups/${gid}/players`, B.token, { name: 'Bình', style: 'da', dailyGoal: 45, participantCode: 'T0-001' })).body.error.code).toBe('participant_taken');
+    expect((await call('POST', `/groups/${gid}/players`, B.token, { name: 'Bình', style: 'xxx', dailyGoal: 30, participantCode: 'T0-002' })).status).toBe(400);
+    bPid = (await call('POST', `/groups/${gid}/players`, B.token, { name: 'Bình', style: 'da', dailyGoal: 45, participantCode: 'T0-002' })).body.id;
     const d = (await call('GET', '/groups/' + gid, B.token)).body as GroupDetail;
     expect(d.players).toHaveLength(2);
     expect(d).toMatchObject({ isOwner: false, meId: bPid, active: null });
@@ -237,14 +243,14 @@ describe('luồng nhóm và phiên tập trung', () => {
   it('rời nhóm rồi vào lại vẫn giữ thành phố', async () => {
     expect((await call('POST', '/me/leave-group', B.token)).body.currentGroupId).toBeNull();
     expect((await call('GET', '/groups/' + gid, B.token)).status).toBe(403);
-    await call('POST', `/groups/${gid}/join`, B.token);
+    await call('POST', '/groups/join', B.token, { code: invite });
     expect(((await call('GET', '/groups/' + gid, B.token)).body as GroupDetail).meId).toBe(bPid);
   });
 
   it('chuỗi thành công nhân thưởng; thất bại đưa chuỗi về 0', async () => {
     const C = await guest('Chi');
-    await call('POST', `/groups/${gid}/join`, C.token);
-    await call('POST', `/groups/${gid}/players`, C.token, { name: 'Chi', style: 'san', dailyGoal: 30 });
+    await call('POST', '/groups/join', C.token, { code: invite });
+    await call('POST', `/groups/${gid}/players`, C.token, { name: 'Chi', style: 'san', dailyGoal: 30, participantCode: 'T0-003' });
     /** Chạy một phiên 5 phút trên máy: hoàn thành hoặc bị hệ thống đánh thất bại vì rời màn hình. */
     async function run(ok: boolean) {
       const s = (await call('POST', `/groups/${gid}/sessions`, C.token, { act: 'deep', minutes: 5, day: today() })).body as ActiveSession;

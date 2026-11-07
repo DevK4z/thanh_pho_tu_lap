@@ -33,7 +33,9 @@ function shuffle<T>(a: T[], rnd: () => number): T[] {
 
 /** Chọn n câu cho hoạt động, hạn chế lặp trong cùng phiên, xáo thứ tự phương án. */
 export function issueQuestions(bank: BankQuestion[], act: ActKey, n: number, used: Set<string>, rnd: () => number = Math.random): StoredQuestion[] {
-  const all = bank.filter((q) => q.act === 'all' || q.act === act);
+  // Học trên máy dùng chung câu hỏi với tập trung trên máy.
+  const key = act === 'study' ? 'deep' : act;
+  const all = bank.filter((q) => q.act === 'all' || q.act === key || q.act === act);
   const out: StoredQuestion[] = [];
   for (let k = 0; k < n && all.length; k++) {
     let pool = all.filter((q) => !used.has(q.id));

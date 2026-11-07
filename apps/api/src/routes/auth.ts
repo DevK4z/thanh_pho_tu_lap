@@ -33,6 +33,7 @@ export function authRoutes(app: FastifyInstance, { db, env, verifiers, requireUs
   app.get('/config', async (): Promise<PublicConfig> => ({
     google: verifiers.google ? env.GOOGLE_CLIENT_ID ?? 'test' : null,
     facebook: verifiers.facebook ? env.FACEBOOK_APP_ID ?? 'test' : null,
+    groupCreation: env.GROUP_CREATION,
   }));
 
   app.post('/auth/guest', { config: authLimit }, async (req) => {
