@@ -1,12 +1,11 @@
 /* Lớp 1: lấy mã thử thách, chụp ảnh và gửi kiểm tra. Ảnh được nén ở trình duyệt, gửi Gemini kiểm tra, ứng dụng không lưu lại. */
 import { useEffect, useRef, useState } from 'react';
-import { PROOF_THING, PROOF_TRIES, VERIFY_FOCUS, type ActiveSession, type ProofState } from '@tptl/shared';
+import { ACTS, PROOF_THING, PROOF_TRIES, VERIFY_FOCUS, type ActiveSession, type ProofState } from '@tptl/shared';
 import { Banner, Button, Card, Field, inputCls, Pill, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
 import { mmss } from '../lib/format';
+import { getGeo, toFieldJpeg, toJpegBase64 } from '../lib/photo';
 
-const MAX_SIDE = 1280;
-const MAX_BASE64 = 1_300_000;
 const PAGES_KEY = 'tptl-book-pages';
 
 function readPages(): number {
@@ -14,22 +13,6 @@ function readPages(): number {
 }
 function savePages(n: number) {
   try { localStorage.setItem(PAGES_KEY, String(n)); } catch { /* không lưu được thì lần sau hỏi lại */ }
-}
-
-/** Thu nhỏ ảnh và chuyển sang JPEG, giảm chất lượng đến khi đủ nhẹ để gửi. */
-async function toJpegBase64(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(bmp.width * k);
-  c.height = Math.round(bmp.height * k);
-  c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
-  bmp.close();
-  for (const q of [0.8, 0.65, 0.5, 0.35]) {
-    const b64 = c.toDataURL('image/jpeg', q).split(',')[1];
-    if (b64.length <= MAX_BASE64) return b64;
-  }
-  throw new Error('Ảnh quá lớn, hãy chụp lại.');
 }
 
 function usePhotoCountdown(expiresAt: number | null) {
@@ -52,6 +35,8 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
   const need = s.mode === 'offline';
   const noTries = p.tries >= PROOF_TRIES;
   const thing = PROOF_THING[s.act];
+  // Vận động, chăm cây: ảnh này cũng là ảnh kết thúc lưu cho trưởng nhóm duyệt, nên nén nhỏ và kèm vị trí.
+  const field = ACTS[s.act].field;
 
   async function getCode() {
     setBusy('code');
@@ -64,14 +49,17 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
   async function send(file: File) {
     setBusy('photo');
     try {
-      onChange(await api<ProofState>('POST', `/sessions/${s.id}/proof`, { image: await toJpegBase64(file) }));
+      const [image, geo] = await Promise.all([field ? toFieldJpeg(file) : toJpegBase64(file), field ? getGeo() : null]);
+      onChange(await api<ProofState>('POST', `/sessions/${s.id}/proof`, { image, ...(geo ?? {}) }));
     } catch (e) { toast(errorMessage(e)); }
     setBusy(null);
     if (input.current) input.current.value = '';
   }
 
   const pill = p.status === 'ok' ? <Pill tone="good">Đã xác minh</Pill> : p.status === 'fail' ? <Pill tone="bad">Chưa khớp</Pill> : <Pill tone="warn">Chưa xác minh</Pill>;
-  const after = need
+  const after = field
+    ? 'Ảnh kết thúc khớp mã cùng ảnh bắt đầu và ảnh giữa phiên giúp phiên được xác minh ngay; thiếu thì phiên chờ trưởng nhóm duyệt.'
+    : need
     ? 'Không có ảnh khớp, phiên vẫn hoàn thành nhưng ở trạng thái “chưa xác minh”: vẫn nhận công trình, số phút không tính vào giai đoạn nhà và không có điểm nhóm.'
     : `Phiên trên máy được xác minh qua theo dõi rời trang khi điểm tập trung từ ${VERIFY_FOCUS}. Ảnh giúp xác minh khi điểm thấp hơn.`;
 
@@ -84,7 +72,7 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
       {p.status === 'ok' && <p className="text-[13px]">{p.reason || 'Ảnh khớp mã và đúng hoạt động.'}</p>}
       {p.status === 'na' && (
         <p className="text-[13px] text-muted">
-          Hệ thống chưa bật kiểm tra ảnh tự động. Phiên vẫn hoàn thành được nhưng ở trạng thái “chưa xác minh”; hãy báo trưởng nhóm nếu thấy thông báo này.
+          {field ? 'Hệ thống chưa bật kiểm tra mã tự động. Hãy chụp ảnh kết thúc ở thẻ Ảnh hiện trường bên dưới; trưởng nhóm sẽ duyệt.' : 'Hệ thống chưa bật kiểm tra ảnh tự động. Phiên vẫn hoàn thành được nhưng ở trạng thái “chưa xác minh”; hãy báo trưởng nhóm nếu thấy thông báo này.'}
         </p>
       )}
       {p.status === 'none' && (
@@ -110,7 +98,7 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
           {p.status === 'fail' && <Banner tone="bad"><span className="text-[13px]">Chưa khớp: {p.reason}{noTries ? ' Đã hết lượt thử.' : ''}</span></Banner>}
           {!noTries && (
             <div className="flex flex-wrap gap-2.5">
-              <input ref={input} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Chụp ảnh bằng chứng"
+              <input ref={input} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Chụp ảnh bằng chứng" aria-hidden="true" tabIndex={-1}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); }} />
               <Button variant="primary" disabled={!!busy || left <= 0} onClick={() => input.current?.click()}>{busy === 'photo' ? 'Đang kiểm tra ảnh…' : 'Chụp ảnh bằng chứng'}</Button>
               <Button disabled={!!busy} onClick={getCode}>Lấy mã mới</Button>

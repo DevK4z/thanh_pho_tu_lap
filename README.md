@@ -12,7 +12,10 @@ Mini app cho CLB rèn luyện kỷ luật tự thân và khả năng tập trung
 - **Vào nhóm bằng mã mời:** mặc định chỉ quản trị viên ứng dụng lập nhóm (`GROUP_CREATION=admin`), học sinh vào bằng mã mời 6 ký tự do trưởng nhóm gửi; người thường không thấy danh sách nhóm, bảng xếp hạng ẩn tên nhóm khác. Đặt `GROUP_CREATION=open` nếu muốn ai cũng lập được nhóm.
 - **Mã cá nhân:** bắt buộc khi tạo nhà trong nhóm (ví dụ `T0-015`), không trùng trong một nhóm, trưởng nhóm sửa được; đi kèm mọi bản xuất dữ liệu để ghép với phiếu khảo sát.
 - **Hai chế độ học trên máy:** "Học trên máy" được mở tài liệu, Word, PDF, có câu kiểm tra hiện diện ngẫu nhiên (máy kêu, tab nhấp nháy, thông báo hệ thống, trả lời trong 90 giây); "Tập trung tuyệt đối" chạy toàn màn hình, chỉ dùng khi học ngay trong web.
-- **Sao lưu:** trang Báo cáo có nút "Tải toàn bộ dữ liệu (JSON)". Gói miễn phí của Neon không xóa dữ liệu nhưng chỉ giữ lịch sử khôi phục 6 giờ, nên tải về định kỳ và lưu ở nơi riêng tư (không đưa lên repo công khai). Workflow `keepalive.yml` gọi `/health` mỗi 10 phút để server Render không ngủ.
+- **Sao lưu tự động:** workflow `backup.yml` chạy mỗi đêm, tải dữ liệu bằng khóa `BACKUP_KEY`, nén và mã hóa AES-256 bằng `BACKUP_PASSPHRASE`, lưu làm artifact 30 ngày. Cần đặt `BACKUP_KEY` (từ 24 ký tự) ở Render và cùng giá trị trong GitHub Secrets, thêm secret `BACKUP_PASSPHRASE`. Giải mã: `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass pass:'MẬT_KHẨU' -in sao-luu-NGAY.json.gz.enc | gunzip > du-lieu.json`. Ảnh hiện trường không nằm trong bản sao lưu.
+- **Sao lưu thủ công:** trang Báo cáo có nút "Tải toàn bộ dữ liệu (JSON)". Gói miễn phí của Neon không xóa dữ liệu nhưng chỉ giữ lịch sử khôi phục 6 giờ, nên tải về định kỳ và lưu ở nơi riêng tư (không đưa lên repo công khai). Workflow `keepalive.yml` gọi `/health` mỗi 10 phút để server Render không ngủ.
+- **Ảnh hiện trường (vận động, chăm cây):** ảnh lúc bắt đầu (5 phút đầu), giữa phiên (30%–80% thời gian) và lúc kết thúc (có mã thử thách), giờ do máy chủ ghi, vị trí làm tròn khoảng 100 m nếu được phép. Đủ ảnh và mã cuối khớp thì xác minh tự động; còn lại trưởng nhóm duyệt Đạt/Không đạt trong tab Quản trị. Ảnh tự xóa sau 45 ngày. Khi mở camera, giám sát giữ ứng dụng mở tạm ngưng tối đa 2 phút.
+- **Bắt buộc mã cá nhân trước khi bắt đầu phiên**, để không có phiên nào thiếu mã ghép với phiếu khảo sát.
 - **Giám sát phiên đọc sách, chăm cây:** giữ ứng dụng mở và màn hình sáng; thoát ứng dụng, đổi tab, tắt màn hình quá 3 giây hoặc đóng trang là thất bại. Cách này không cần toàn màn hình nên chạy được trên iPhone. Vận động không giám sát (cất máy), chỉ dựa vào ảnh bằng chứng.
 - **Ba lớp bằng chứng:** (1) cuối phiên nhận mã thử thách ngẫu nhiên (đọc sách kèm số trang), viết ra giấy và chụp trong 2 phút, Gemini kiểm tra ảnh, ứng dụng không lưu ảnh; (2) hôm sau Gemini hỏi lại một chi tiết về điều đã khai, phải trả lời trước khi bắt đầu phiên mới; (3) trưởng nhóm bốc thăm 1–2 phiên mỗi tuần của mỗi người để hỏi trực tiếp tại buổi sinh hoạt.
 - **Chưa xác minh** (phiên ngoài màn hình không có ảnh khớp, phiên trên máy dưới 70 điểm tập trung): vẫn nhận công trình, nhưng số phút không tính vào giai đoạn nhà và không có điểm nhóm. Độ tin cậy = 40% phiên có xác minh + 30% nhớ lại khớp + 30% kiểm tra trực tiếp khớp, trừ 15 điểm mỗi lần không khớp.
@@ -152,3 +155,14 @@ Giao diện là trang tĩnh (GitHub Pages); API cần một máy chủ Node.js v
 - iPhone và iPad (Safari) không hỗ trợ Fullscreen API cho trang web, nên không bắt đầu được phiên trên máy ở các thiết bị này; vẫn dùng được các hoạt động ngoài màn hình.
 - Phím Escape khi đang toàn màn hình do trình duyệt xử lý và không tới được trang, nên được phát hiện qua sự kiện `fullscreenchange`.
 - Không đo chuyển động mắt/đầu; độ tập trung ước tính qua rời trang, câu hỏi kiểm tra và tự đánh giá.
+
+## Đưa mã nguồn về riêng tư
+
+GitHub Pages miễn phí không chạy từ repo riêng tư, nên phải chuyển trang web sang nơi khác trước khi đổi repo sang Private:
+
+1. Cloudflare Pages (miễn phí): Workers & Pages > Create > Pages > Connect to Git > chọn repo này.
+   Build command `npm ci && npm run build -w apps/web`, output `apps/web/dist`, biến môi trường `VITE_API_URL` = địa chỉ API (như biến `API_URL` hiện tại).
+2. Thêm địa chỉ mới (ví dụ `https://ten-du-an.pages.dev`) vào `WEB_ORIGIN` trên Render (cách nhau bằng dấu phẩy) và vào Google/Facebook (Authorized JavaScript origins, App Domains).
+3. Mở thử trang mới, đăng nhập được rồi mới vào Settings > General > Change visibility > Private. Workflow `pages.yml` có thể tắt sau đó.
+
+Lưu ý: dù repo riêng tư, mã giao diện vẫn xem được trong trình duyệt; mọi kiểm tra chống gian lận quan trọng đều nằm ở máy chủ.

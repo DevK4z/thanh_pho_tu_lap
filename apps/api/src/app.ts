@@ -15,6 +15,7 @@ import { adminRoutes } from './routes/admin';
 import { reportRoutes } from './routes/report';
 import { rankingRoutes } from './routes/ranking';
 import { evidenceRoutes } from './routes/evidence';
+import { fieldRoutes } from './routes/field';
 import { geminiAI, type EvidenceAI } from './ai';
 import type { Me } from '@tptl/shared';
 
@@ -114,6 +115,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     reportRoutes(api, ctx);
     rankingRoutes(api, ctx);
     evidenceRoutes(api, ctx);
+    fieldRoutes(api, ctx);
   }, { prefix: '/api' });
 
   return app;

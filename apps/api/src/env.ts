@@ -17,6 +17,8 @@ const schema = z.object({
   AI_MODEL: z.string().default('gemini-3.5-flash-lite'),
   /** admin: chỉ quản trị viên ứng dụng lập nhóm (mặc định); open: ai cũng lập được. */
   GROUP_CREATION: z.enum(['admin', 'open']).default('admin'),
+  /** Khóa cho workflow sao lưu tự động gọi /api/admin/export (ít nhất 24 ký tự). Để trống thì chỉ quản trị viên tải được. */
+  BACKUP_KEY: z.string().min(24, 'BACKUP_KEY cần ít nhất 24 ký tự').optional().or(z.literal('').transform(() => undefined)),
   NODE_ENV: z.string().default('development'),
 });
 export type Env = z.infer<typeof schema>;

@@ -1,5 +1,5 @@
 /* Hợp đồng dữ liệu giữa REST API và giao diện. Mốc thời gian là mili giây (epoch). */
-import type { ActKey, HouseStyle, ItemId, Mode, QuitReason } from './constants';
+import type { ActKey, HouseStyle, ItemId, Mode, PhotoKind, QuitReason } from './constants';
 
 export type Provider = 'google' | 'facebook' | 'guest';
 
@@ -167,6 +167,8 @@ export interface SessionLog {
   recallVerdict: string;
   recallReason: string;
   spotResult: SpotResult | null;
+  /** Trưởng nhóm duyệt ảnh hiện trường. */
+  review: SpotResult | null;
 }
 
 export interface SessionResult {
@@ -291,3 +293,15 @@ export interface FullExport {
   }[];
   days: ({ playerId: string; participantCode: string | null; day: string } & DayStat)[];
 }
+
+/** Ảnh hiện trường: giờ do máy chủ ghi; vị trí làm tròn khoảng 100 m, null nếu người dùng không cho phép. */
+export interface FieldPhoto { kind: PhotoKind; takenAt: number; lat: number | null; lng: number | null; acc: number | null }
+export interface FieldReviewItem {
+  sid: string; playerId: string; name: string; participantCode: string | null;
+  /** Phiên của chính người xem: không được tự duyệt. */
+  self: boolean;
+  act: ActKey; day: string; minutes: number; startedAt: number; endedAt: number | null;
+  verified: boolean; proofStatus: ProofStatus; review: SpotResult | null;
+  photos: FieldPhoto[];
+}
+export interface FieldReview { items: FieldReviewItem[] }

@@ -43,6 +43,13 @@ export async function requireMember(db: Db, u: User, gid: string, asAdmin = fals
   return g;
 }
 
+/** Trưởng nhóm hoặc quản trị viên ứng dụng. */
+export async function requireManager(db: Db, u: User, gid: string, asAdmin: boolean): Promise<GroupRow> {
+  const g = await requireMember(db, u, gid, asAdmin);
+  if (g.ownerId !== u.id && !asAdmin) throw new HttpError(403, 'owner_only', 'Chỉ trưởng nhóm làm được việc này.');
+  return g;
+}
+
 export async function findPlayer(db: Db, gid: string, uid: string): Promise<PlayerRow | undefined> {
   const [p] = await db.select().from(players).where(and(eq(players.groupId, gid), eq(players.userId, uid))).limit(1);
   return p;
@@ -75,12 +82,6 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
       if (!hit) return c;
     }
     throw new HttpError(500, 'invite_failed', 'Chưa tạo được mã mời, hãy thử lại.');
-  }
-  async function requireManager(u: User, gid: string): Promise<GroupRow> {
-    const admin = isAdmin(u);
-    const g = await requireMember(db, u, gid, admin);
-    if (g.ownerId !== u.id && !admin) throw new HttpError(403, 'owner_only', 'Chỉ trưởng nhóm làm được việc này.');
-    return g;
   }
 
   /** Danh sách nhóm chỉ dành cho quản trị viên ứng dụng; người khác vào nhóm bằng mã mời. */
@@ -207,7 +208,7 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
   app.post('/groups/:gid/invite', async (req) => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
-    await requireManager(u, gid);
+    await requireManager(db, u, gid, isAdmin(u));
     const inviteCode = await freshInvite();
     await db.update(groups).set({ inviteCode }).where(eq(groups.id, gid));
     return { inviteCode };
@@ -274,7 +275,7 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
       note: r.recallDue && p.userId === u.id ? '' : r.note,
       verified: r.verified, proofStatus: r.proofStatus, proofReason: r.proofReason,
       recallQuestion: r.recallDue ? '' : r.recallQ, recallAnswer: r.recallA, recallScore: r.recallScore, recallVerdict: r.recallVerdict, recallReason: r.recallReason,
-      spotResult: r.spotResult,
+      spotResult: r.spotResult, review: r.review,
     }));
   });
 }

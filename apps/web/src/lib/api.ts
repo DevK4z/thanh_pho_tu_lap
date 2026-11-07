@@ -40,4 +40,12 @@ export async function api<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: 
   return data as T;
 }
 
+/** Tải tệp nhị phân (ảnh) có kèm đăng nhập. */
+export async function apiBlob(path: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(API_URL + '/api' + path, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+  if (!res.ok) throw new ApiError(res.status, 'http_' + res.status, 'Không tải được ảnh (' + res.status + ').');
+  return res.blob();
+}
+
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : 'Có lỗi xảy ra.');

@@ -10,7 +10,7 @@ import {
 } from '@tptl/shared';
 import type { Ctx, User } from '../app';
 import type { Db } from '../db/client';
-import { dayStats, focusSessions, players, questions as questionsTable, type SessionQuestions } from '../db/schema';
+import { dayStats, focusSessions, players, questions as questionsTable, sessionPhotos, type SessionQuestions } from '../db/schema';
 import { HttpError, parse, pgCode } from '../errors';
 import { DEFAULT_QUESTIONS, issueQuestions, publicSession, type BankQuestion } from '../questions';
 import { findRecall } from '../recall';
@@ -90,6 +90,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     }), req.body);
     const now = Date.now();
     if (!plausibleDay(body.day, now)) throw new HttpError(400, 'bad_day', 'Ngày trên máy không khớp với giờ thực. Hãy kiểm tra đồng hồ của máy.');
+    if (!p.participantCode) throw new HttpError(409, 'participant_required', 'Hãy nhập mã cá nhân trước khi bắt đầu phiên, để kết quả được ghép đúng với phiếu khảo sát.');
     if (await findRecall(db, p.id, body.day)) throw new HttpError(409, 'recall_due', 'Hãy trả lời câu hỏi nhớ lại trước khi bắt đầu phiên mới.');
     const mode = ACTS[body.act].mode;
     const plannedSec = body.minutes * 60;
@@ -162,7 +163,12 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       const minutes = Math.round(s.plannedSec / 60);
       const tier = tierFor(minutes);
       // Có ảnh khớp mã, hoặc phiên trên máy đạt điểm tập trung đủ cao. Chưa xác minh vẫn nhận công trình nhưng phút không được tính.
-      const verified = s.proofStatus === 'ok' || (s.mode === 'screen' && focus >= VERIFY_FOCUS);
+      let verified = s.proofStatus === 'ok' || (s.mode === 'screen' && focus >= VERIFY_FOCUS);
+      // Vận động, chăm cây: cần đủ ảnh bắt đầu, giữa phiên và ảnh kết thúc khớp mã; thiếu thì chờ trưởng nhóm duyệt.
+      if (ACTS[s.act].field) {
+        const kinds = (await tx.select({ k: sessionPhotos.kind }).from(sessionPhotos).where(eq(sessionPhotos.sessionId, sid))).map((r) => r.k);
+        verified = s.proofStatus === 'ok' && kinds.includes('start') && kinds.includes('mid');
+      }
       const shiny = focus >= 85 && verified;
       const gained = verified ? minutes : 0;
       const hasClaim = !!(s.goal || body.note);

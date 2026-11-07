@@ -7,6 +7,7 @@ import { Icon } from '../components/Icons';
 import { Banner, Button, Card, Check, Chip, Eyebrow, Field, Grid, inputCls, Option, useToast } from '../components/ui';
 import { enterFullscreen, exitFullscreen, fullscreenSupported } from '../focus/useAntiCheat';
 import { api, errorMessage } from '../lib/api';
+import { ParticipantCodeCard } from './ParticipantCodeCard';
 import { RecallCard } from './RecallCard';
 
 const PREP = {
@@ -59,6 +60,8 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
   async function begin() {
     if (!validDur) { toast(`Thời gian cam kết cần từ ${MIN_MINUTES} đến ${MAX_MINUTES} phút.`); return; }
     setBusy(true);
+    // Ảnh hiện trường kèm vị trí: xin quyền ngay trong cú bấm để không hỏi giữa phiên.
+    if (a.field && 'geolocation' in navigator) navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 10_000 });
     // Xin quyền thông báo ngay trong cú bấm, để câu kiểm tra hiện diện báo được cả khi đang ở ứng dụng khác.
     if (a.watch === 'checks' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
     // Bật toàn màn hình trước, ngay trong cú bấm của người dùng (trình duyệt chỉ cho phép lúc này).
@@ -78,6 +81,16 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
       toast(errorMessage(e));
       setBusy(false);
     }
+  }
+
+  if (!player.participantCode) {
+    return (
+      <section className="flex flex-col gap-3.5">
+        <div><Eyebrow>Đăng ký phiên</Eyebrow><h2>Cần mã cá nhân trước</h2></div>
+        <p className="text-muted">Mỗi phiên phải gắn với mã cá nhân để kết quả ghép đúng với phiếu khảo sát. Nhập mã thầy cô cấp để bắt đầu.</p>
+        <ParticipantCodeCard gid={gid} player={player} />
+      </section>
+    );
   }
 
   if (recall) {
@@ -145,6 +158,12 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
         <div>
           {PREP[a.watch].map((c, i) => <Check key={act + i} checked={checks[i]} onChange={(v) => setChecks((x) => x.map((y, j) => (j === i ? v : y)))}>{c}</Check>)}
         </div>
+        {a.field && (
+          <p className="text-[13px] text-muted">
+            Phiên này cần 3 ảnh hiện trường: lúc bắt đầu (trong 5 phút đầu), giữa phiên và lúc kết thúc. Ứng dụng xin quyền vị trí để ghi kèm ảnh
+            (làm tròn khoảng 100 m, chỉ trưởng nhóm xem); không cho phép thì ảnh vẫn gửi được nhưng không có vị trí.
+          </p>
+        )}
         {a.watch === 'visible' && !navigator.wakeLock && (
           <Banner tone="bad">Trình duyệt này không giữ được màn hình sáng. Hãy tắt tự khóa màn hình trong cài đặt máy trước khi bắt đầu, nếu không máy tự khóa sẽ làm phiên thất bại.</Banner>
         )}
