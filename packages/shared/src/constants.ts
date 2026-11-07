@@ -8,6 +8,8 @@ export interface Activity {
   mode: Mode;
   /** Cách giám sát: toàn màn hình; giữ ứng dụng mở và màn hình sáng; chỉ câu kiểm tra hiện diện (được mở tài liệu); không giám sát (cất máy đi). */
   watch: Watch;
+  /** Cần ảnh hiện trường lúc bắt đầu, giữa phiên và kết thúc (vận động, chăm cây). */
+  field: boolean;
   /** Mô tả ngắn hiển thị khi chọn hoạt động. */
   d: string;
   /** Nhãn ô mục tiêu và gợi ý. */
@@ -20,12 +22,12 @@ export interface Activity {
 export type Watch = 'fullscreen' | 'visible' | 'checks' | 'none';
 
 export const ACTS: Record<ActKey, Activity> = {
-  read: { n: 'Đọc sách giấy', mode: 'offline', watch: 'visible', d: 'Giữ ứng dụng mở, úp điện thoại xuống và đọc sách giấy. Hết giờ trả lời câu hỏi xác nhận.', gl: 'Sách và phần sẽ đọc', ph: 'Tên sách, chương hoặc số trang', needNote: true },
-  study: { n: 'Học trên máy', mode: 'screen', watch: 'checks', d: 'Học bằng tài liệu trên máy: được mở Word, PDF, trang tra cứu. Thỉnh thoảng có câu kiểm tra hiện diện; máy sẽ kêu để bạn quay lại trả lời trong 90 giây. Cuối phiên ghi lại việc đã làm được.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong đề cương môn Sử', needNote: true },
-  deep: { n: 'Tập trung tuyệt đối', mode: 'screen', watch: 'fullscreen', d: 'Chỉ dùng khi học ngay trong trang web này: chạy toàn màn hình, đổi tab hoặc mở ứng dụng khác quá 3 giây là thất bại.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
-  write: { n: 'Viết và suy ngẫm', mode: 'screen', watch: 'fullscreen', d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
-  move: { n: 'Vận động', mode: 'offline', watch: 'none', d: 'Chạy bộ, tập thể dục, đạp xe. Cất điện thoại và quay lại khi hết giờ.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
-  plant: { n: 'Chăm cây', mode: 'offline', watch: 'visible', d: 'Trồng, tưới, tỉa cây. Giữ ứng dụng mở, đặt điện thoại gần đó cho đến khi hết giờ.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
+  read: { n: 'Đọc sách giấy', mode: 'offline', watch: 'visible', field: false, d: 'Giữ ứng dụng mở, úp điện thoại xuống và đọc sách giấy. Hết giờ trả lời câu hỏi xác nhận.', gl: 'Sách và phần sẽ đọc', ph: 'Tên sách, chương hoặc số trang', needNote: true },
+  study: { n: 'Học trên máy', mode: 'screen', watch: 'checks', field: false, d: 'Học bằng tài liệu trên máy: được mở Word, PDF, trang tra cứu. Thỉnh thoảng có câu kiểm tra hiện diện; máy sẽ kêu để bạn quay lại trả lời trong 90 giây. Cuối phiên ghi lại việc đã làm được.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong đề cương môn Sử', needNote: true },
+  deep: { n: 'Tập trung tuyệt đối', mode: 'screen', watch: 'fullscreen', field: false, d: 'Chỉ dùng khi học ngay trong trang web này: chạy toàn màn hình, đổi tab hoặc mở ứng dụng khác quá 3 giây là thất bại.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
+  write: { n: 'Viết và suy ngẫm', mode: 'screen', watch: 'fullscreen', field: false, d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
+  move: { n: 'Vận động', mode: 'offline', watch: 'none', field: true, d: 'Chạy bộ, tập thể dục, đạp xe. Chụp ảnh hiện trường lúc bắt đầu, giữa phiên và lúc kết thúc; giữa các lần chụp thì cất điện thoại.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
+  plant: { n: 'Chăm cây', mode: 'offline', watch: 'visible', field: true, d: 'Trồng, tưới, tỉa cây. Giữ ứng dụng mở, đặt điện thoại gần đó; chụp ảnh hiện trường lúc bắt đầu, giữa phiên và lúc kết thúc.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
 };
 export const ACT_KEYS: ActKey[] = ['read', 'study', 'deep', 'write', 'move', 'plant'];
 
@@ -106,6 +108,15 @@ export const RECALL_PASS = 60;
 /** Quá số ngày này sau phiên thì không hỏi nhớ lại nữa. */
 export const RECALL_WINDOW_DAYS = 4;
 export const MIN_RECALL_WORDS = 4;
+/* Ảnh hiện trường (vận động, chăm cây). */
+export type PhotoKind = 'start' | 'mid' | 'end';
+/** Ảnh bắt đầu phải chụp trong khoảng này kể từ lúc bấm bắt đầu. */
+export const FIELD_START_SECONDS = 300;
+/** Ảnh giữa phiên chụp trong khoảng từ 30% đến 80% thời gian phiên. */
+export const FIELD_MID_FROM = 0.3;
+export const FIELD_MID_TO = 0.8;
+/** Ảnh hiện trường tự xóa sau số ngày này (thực nghiệm 28 ngày cộng thời gian phân tích). */
+export const PHOTO_RETENTION_DAYS = 45;
 /** Vật cần chụp cạnh mã thử thách. */
 export const PROOF_THING: Record<ActKey, string> = {
   read: 'trang sách đang đọc (thấy rõ chữ in trên trang)',

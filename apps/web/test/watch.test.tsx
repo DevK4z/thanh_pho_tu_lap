@@ -31,7 +31,7 @@ function mount(s: ActiveSession) {
 beforeEach(() => {
   vi.useFakeTimers({ now: START });
   hidden = false;
-  api.mockReset().mockResolvedValue({ lostStreak: 2, stats });
+  api.mockReset().mockImplementation(async (_m: string, path: string) => (path.includes('/photos') ? [] : { lostStreak: 2, stats }));
   requestLock.mockReset().mockImplementation(async () => ({ release: async () => {} }));
   Object.defineProperty(document, 'hidden', { get: () => hidden, configurable: true });
   Object.defineProperty(navigator, 'wakeLock', { value: { request: requestLock }, configurable: true });
@@ -101,6 +101,30 @@ describe('phiên đọc sách, chăm cây', () => {
     mount(session('read'));
     await tick(0);
     expect(screen.getByText(/không giữ được màn hình sáng/)).toBeTruthy();
+  });
+});
+
+describe('ảnh hiện trường', () => {
+  it('chăm cây: mở camera thì tạm ngưng giám sát, hết 2 phút mà vẫn rời đi thì thất bại', async () => {
+    const { onFailed } = mount(session('plant'));
+    await tick(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Chụp ảnh bắt đầu' }));
+    setHidden(true);
+    await tick(60_000);
+    expect(screen.queryByText('Bạn đang rời khỏi phiên!')).toBeNull();
+    expect(onFailed).not.toHaveBeenCalled();
+    await tick(65_000);
+    expect(onFailed).toHaveBeenCalledWith(expect.objectContaining({ kind: 'violation' }));
+  });
+
+  it('vận động: có thẻ ảnh hiện trường; giữa phiên mới hiện nút chụp ảnh giữa phiên', async () => {
+    mount(session('move'));
+    await tick(0);
+    expect(screen.getByText('Ảnh hiện trường')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Chụp ảnh giữa phiên' })).toBeNull();
+    await tick(100_000);
+    expect(screen.getByRole('button', { name: 'Chụp ảnh giữa phiên' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Chụp ảnh bắt đầu' })).toBeTruthy();
   });
 });
 

@@ -1,0 +1,39 @@
+# Sao lưu dữ liệu mỗi đêm (0:30 giờ Việt Nam). Gói miễn phí của Neon chỉ giữ lịch sử khôi phục 6 giờ.
+# Bản sao lưu được nén và mã hóa AES-256 trước khi lưu làm artifact, vì repo đang công khai.
+# Cần: biến repo API_URL; secret BACKUP_KEY (trùng với BACKUP_KEY trên Render) và secret BACKUP_PASSPHRASE.
+# Giải mã: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass pass:'MẬT_KHẨU' -in sao-luu-NGAY.json.gz.enc | gunzip > du-lieu.json
+name: Sao lưu dữ liệu
+
+on:
+  schedule:
+    - cron: '30 17 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Tải và mã hóa dữ liệu
+        env:
+          API_URL: ${{ vars.API_URL }}
+          BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$BACKUP_KEY" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "Chưa đặt API_URL, BACKUP_KEY hoặc BACKUP_PASSPHRASE, bỏ qua."; exit 0
+          fi
+          day=$(TZ=Asia/Ho_Chi_Minh date +%F)
+          curl -fsS --retry 3 --retry-delay 30 --max-time 300 -H "x-backup-key: $BACKUP_KEY" "$API_URL/api/admin/export" -o data.json
+          test "$(head -c 1 data.json)" = "{"
+          gzip -9 data.json
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSPHRASE -in data.json.gz -out "sao-luu-$day.json.gz.enc"
+          rm data.json.gz
+          echo "DAY=$day" >> "$GITHUB_ENV"
+      - name: Lưu bản sao lưu đã mã hóa
+        if: env.DAY != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: sao-luu-${{ env.DAY }}
+          path: sao-luu-*.json.gz.enc
+          retention-days: 30

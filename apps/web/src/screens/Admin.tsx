@@ -8,6 +8,7 @@ import { qk, useLogs, useQuestions } from '../lib/queries';
 import { GrantTool } from './GrantTool';
 import { GroupAccessCard } from './GroupAccessCard';
 import { LogTable } from './LogTable';
+import { FieldReviewCard } from './FieldReviewCard';
 import { SpotCard } from './SpotCard';
 
 function exportCSV(d: GroupDetail) {
@@ -69,6 +70,7 @@ export function Admin({ gid, detail, isAppAdmin, onOpenReward }: { gid: string; 
       <GroupAccessCard gid={gid} detail={detail} />
       {isAppAdmin && <GrantTool gid={gid} detail={detail} onOpenReward={onOpenReward} />}
       <SpotCard gid={gid} />
+      <FieldReviewCard gid={gid} />
       <Card>
         <h3>Từng thành viên (7 ngày)</h3>
         <p className="text-[13px] text-muted">Bấm vào một dòng để xem các phiên gần đây và ghi chú của thành viên.</p>

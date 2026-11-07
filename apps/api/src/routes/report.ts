@@ -1,4 +1,5 @@
 /* Báo cáo cho quản trị viên ứng dụng: tỷ lệ hoàn thành và bỏ cuộc của từng người ở mọi nhóm. */
+import { timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -9,11 +10,18 @@ import { HttpError, parse } from '../errors';
 
 const rate = (a: number, b: number) => (b ? a / b : null);
 
-export function reportRoutes(app: FastifyInstance, { db, requireUser, isAdmin }: Ctx) {
+export function reportRoutes(app: FastifyInstance, { db, env, requireUser, isAdmin }: Ctx) {
+  /** Workflow sao lưu gửi khóa riêng thay cho đăng nhập. */
+  const backupKeyOk = (k: unknown) => {
+    if (!env.BACKUP_KEY || typeof k !== 'string') return false;
+    const a = Buffer.from(k), b = Buffer.from(env.BACKUP_KEY);
+    return a.length === b.length && timingSafeEqual(a, b);
+  };
   /** Tải toàn bộ dữ liệu để sao lưu (gói miễn phí của Neon chỉ giữ lịch sử khôi phục 6 giờ) và để phân tích. */
   app.get('/admin/export', async (req, reply): Promise<FullExport> => {
-    const u = await requireUser(req);
-    if (!isAdmin(u)) throw new HttpError(403, 'admin_only', 'Chỉ quản trị viên ứng dụng tải được dữ liệu.');
+    const byKey = backupKeyOk(req.headers['x-backup-key']);
+    const u = byKey ? null : await requireUser(req);
+    if (u && !isAdmin(u)) throw new HttpError(403, 'admin_only', 'Chỉ quản trị viên ứng dụng tải được dữ liệu.');
     const gs = await db.select({ id: groups.id, name: groups.name, createdAt: groups.createdAt, ownerName: users.name }).from(groups).innerJoin(users, eq(users.id, groups.ownerId));
     const ps = await db.select({ p: players, provider: users.provider }).from(players).innerJoin(users, eq(users.id, players.userId));
     const ss = await db.select().from(focusSessions).orderBy(focusSessions.startedAt);
@@ -21,7 +29,7 @@ export function reportRoutes(app: FastifyInstance, { db, requireUser, isAdmin }:
     const gName = new Map(gs.map((g) => [g.id, g.name]));
     const code = new Map(ps.map(({ p }) => [p.id, p.participantCode]));
     const ms = (d: Date | null) => (d ? d.getTime() : null);
-    req.log.info({ adminId: u.id, sessions: ss.length }, 'admin_export');
+    req.log.info({ adminId: u?.id ?? 'backup', sessions: ss.length }, 'admin_export');
     reply.header('content-disposition', `attachment; filename="thanh-pho-tu-lap-${new Date().toISOString().slice(0, 10)}.json"`);
     return {
       exportedAt: Date.now(),

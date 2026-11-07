@@ -47,13 +47,13 @@ export function useAntiCheat(active: boolean, fullscreen: boolean, onFail: (caus
   const [away, setAway] = useState<{ since: number; cause: Cause } | null>(null);
   const [log, setLog] = useState<Warning[]>([]);
   const [now, setNow] = useState(Date.now());
-  const r = useRef({ away: null as { since: number; cause: Cause } | null, blurred: false, total: 0, failed: false, log: [] as Warning[] });
+  const r = useRef({ away: null as { since: number; cause: Cause } | null, blurred: false, total: 0, failed: false, pausedUntil: 0, log: [] as Warning[] });
   const onFailRef = useRef(onFail);
   onFailRef.current = onFail;
 
   /** Lý do đang vi phạm, null nếu mọi thứ bình thường. Tab ẩn được ưu tiên vì nó kéo theo cả blur. */
   const currentCause = (): Cause | null =>
-    document.hidden ? 'tab' : !fullscreen ? null : !isFullscreen() ? 'fullscreen' : r.current.blurred ? 'blur' : null;
+    Date.now() < r.current.pausedUntil ? null : document.hidden ? 'tab' : !fullscreen ? null : !isFullscreen() ? 'fullscreen' : r.current.blurred ? 'blur' : null;
 
   const push = (w: Warning) => {
     r.current.log = r.current.log.concat([w]);
@@ -120,5 +120,8 @@ export function useAntiCheat(active: boolean, fullscreen: boolean, onFail: (caus
     isAway: () => !!r.current.away || r.current.failed,
     /** Tổng thời gian rời trong ân hạn và số lần cảnh báo, gửi lên máy chủ khi kết thúc. */
     measures: () => ({ awaySec: r.current.total, dist: r.current.log.length }),
+    /** Tạm ngưng giám sát trong lúc mở camera chụp ảnh hiện trường (trang bị ẩn khi camera mở). */
+    pause: (ms: number) => { r.current.pausedUntil = Date.now() + ms; },
+    resume: () => { r.current.pausedUntil = 0; evaluate(); },
   };
 }

@@ -4,6 +4,7 @@ import { Banner, Button, Card, Chip, Eyebrow, Modal, Option, Stat3, useToast } f
 import { CAUSE_LABEL, enterFullscreen, exitFullscreen, useAntiCheat, type Cause, type Warning } from '../focus/useAntiCheat';
 import { useFocusRun, type RunMeasures } from '../focus/useFocusRun';
 import { sendDataToAdmin } from '../lib/adminReport';
+import { FieldPhotoCard } from './FieldPhotoCard';
 import { api, errorMessage } from '../lib/api';
 import { hm, mmss } from '../lib/format';
 
@@ -165,6 +166,7 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
           <b>Hãy cất điện thoại.</b> Bạn có thể thoát khỏi ứng dụng. Quay lại sau <b>{hm(s.startedAt + s.plannedSec * 1000)}</b> để trả lời câu hỏi xác nhận và nhận công trình.
         </Banner>
       )}
+      {a.field && <FieldPhotoCard s={s} kinds={['start', 'mid']} pause={ac.pause} resume={ac.resume} />}
       <div><Button variant="ghost" onClick={() => setQuitAsk(true)} disabled={busy}>Dừng phiên (tính là thất bại)</Button></div>
 
       {ac.away && (

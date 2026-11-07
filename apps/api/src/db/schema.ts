@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { type AnyPgColumn, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { ActKey, HouseStyle, Mode, PendingReward, PlotItem, ProofStatus, Provider, QuitReason, SpotResult } from '@tptl/shared';
+import { type AnyPgColumn, boolean, index, real, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { ActKey, HouseStyle, Mode, PendingReward, PhotoKind, PlotItem, ProofStatus, Provider, QuitReason, SpotResult } from '@tptl/shared';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -131,11 +131,25 @@ export const focusSessions = pgTable('focus_sessions', {
   recallReason: text('recall_reason').notNull().default(''),
   spotWeek: text('spot_week'),
   spotResult: text('spot_result').$type<SpotResult>(),
+  /** Trưởng nhóm duyệt ảnh hiện trường (vận động, chăm cây). */
+  review: text('review').$type<SpotResult>(),
 }, (t) => [
   index('focus_sessions_player_idx').on(t.playerId, t.startedAt),
   // Mỗi người chỉ có tối đa một phiên đang chạy.
   uniqueIndex('focus_sessions_one_active').on(t.playerId).where(sql`${t.status} = 'active'`),
 ]);
+
+/** Ảnh hiện trường (base64 JPEG đã nén ở trình duyệt). Tự xóa sau PHOTO_RETENTION_DAYS ngày. */
+export const sessionPhotos = pgTable('session_photos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').notNull().references(() => focusSessions.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<PhotoKind>().notNull(),
+  data: text('data').notNull(),
+  takenAt: ts('taken_at').notNull().defaultNow(),
+  lat: real('lat'),
+  lng: real('lng'),
+  acc: integer('acc'),
+}, (t) => [uniqueIndex('session_photos_kind_key').on(t.sessionId, t.kind), index('session_photos_taken_idx').on(t.takenAt)]);
 
 export const questions = pgTable('questions', {
   id: uuid('id').primaryKey().defaultRandom(),

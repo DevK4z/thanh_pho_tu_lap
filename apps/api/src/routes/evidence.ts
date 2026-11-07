@@ -13,7 +13,9 @@ import type { Db } from '../db/client';
 import { focusSessions, players } from '../db/schema';
 import { HttpError, parse } from '../errors';
 import { proofState } from '../questions';
-import { requireMember, uuidParam } from './groups';
+import { requireManager, uuidParam } from './groups';
+import { geoBody, isJpeg, MAX_IMAGE_CHARS } from './field';
+import { savePhoto } from '../photos';
 import { addDay, plausibleDay } from './sessions';
 
 type SessionRow = typeof focusSessions.$inferSelect;
@@ -23,9 +25,6 @@ const CODE_WORDS = ['MAY', 'SONG', 'LUA', 'GIO', 'NUI', 'HOA', 'CAY', 'SAO', 'MU
 const makeCode = () => CODE_WORDS[randomInt(CODE_WORDS.length)] + '-' + randomInt(10, 100);
 /** Cho phép trễ một chút vì còn phải nén và gửi ảnh. */
 const PROOF_LATE_MS = 15_000;
-/** Base64 của ảnh JPEG đã nén ở trình duyệt. */
-const MAX_IMAGE_CHARS = 1_400_000;
-const isJpeg = (b64: string) => { const b = Buffer.from(b64.slice(0, 8), 'base64'); return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff; };
 const dayParam = z.string().regex(DAY_RE);
 
 function shuffled<T>(a: T[]): T[] {
@@ -73,13 +72,14 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
     });
   });
 
-  /** Gửi ảnh. Ảnh chỉ đi qua Gemini để kiểm tra, ứng dụng không lưu lại. */
+  /** Gửi ảnh. Đọc sách: ảnh chỉ đi qua Gemini để kiểm tra, không lưu. Vận động, chăm cây: lưu làm ảnh kết thúc để trưởng nhóm duyệt. */
   app.post('/sessions/:sid/proof', { bodyLimit: MAX_IMAGE_CHARS + 1024 }, async (req): Promise<ProofState> => {
     const u = await requireUser(req);
     const { sid } = parse(uuidParam('sid'), req.params);
-    const { image } = parse(z.object({ image: z.string().min(16).max(MAX_IMAGE_CHARS) }), req.body);
+    const { image, ...geo } = parse(z.object({ image: z.string().min(16).max(MAX_IMAGE_CHARS), ...geoBody }), req.body);
     if (!isJpeg(image)) throw new HttpError(400, 'bad_image', 'Ảnh không đọc được, hãy chụp lại.');
     const s = await activeOwned(u, sid);
+    if (ACTS[s.act].field) await savePhoto(db, sid, 'end', image, geo);
     if (!ai) return saveProof(sid, { proofStatus: 'na' });
     if (s.proofStatus === 'ok') throw new HttpError(409, 'proof_done', 'Ảnh của phiên này đã khớp.');
     if (!s.proofCode || !s.proofExp) throw new HttpError(409, 'proof_no_code', 'Hãy lấy mã thử thách trước.');
@@ -161,11 +161,7 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
 
   /* ---------- lớp 4: kiểm tra trực tiếp ---------- */
 
-  async function requireManager(u: User, gid: string) {
-    const admin = isAdmin(u);
-    const g = await requireMember(db, u, gid, admin);
-    if (g.ownerId !== u.id && !admin) throw new HttpError(403, 'owner_only', 'Chỉ trưởng nhóm làm được việc này.');
-  }
+  const requireManagerOf = (u: User, gid: string) => requireManager(db, u, gid, isAdmin(u));
 
   async function latestDraw(u: User, gid: string): Promise<SpotDraw> {
     const members = await db.select({ id: players.id, name: players.name, userId: players.userId }).from(players).where(eq(players.groupId, gid)).orderBy(players.name);
@@ -191,7 +187,7 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
   app.get('/groups/:gid/spot', async (req): Promise<SpotDraw> => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
-    await requireManager(u, gid);
+    await requireManagerOf(u, gid);
     return latestDraw(u, gid);
   });
 
@@ -199,7 +195,7 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
   app.post('/groups/:gid/spot/draw', async (req): Promise<SpotDraw> => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
-    await requireManager(u, gid);
+    await requireManagerOf(u, gid);
     const week = weekKey();
     const f = focusSessions;
     const ids = (await db.select({ id: players.id }).from(players).where(eq(players.groupId, gid))).map((p) => p.id);
@@ -225,7 +221,7 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
     const u = await requireUser(req);
     const { gid, sid } = parse(uuidParam('gid', 'sid'), req.params);
     const { result } = parse(z.object({ result: z.enum(['ok', 'no']) }), req.body);
-    await requireManager(u, gid);
+    await requireManagerOf(u, gid);
     await db.transaction(async (tx) => {
       const [row] = await tx.select({ s: focusSessions, p: players }).from(focusSessions)
         .innerJoin(players, eq(players.id, focusSessions.playerId)).where(and(eq(focusSessions.id, sid), eq(players.groupId, gid))).for('update');
