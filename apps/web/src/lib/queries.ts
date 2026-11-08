@@ -18,9 +18,10 @@ export const qk = {
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api<PublicConfig>('GET', '/config'), staleTime: Infinity, retry: 1 });
 
 /** null khi chưa đăng nhập hoặc token hết hạn. */
-export const useMe = () =>
+export const useMe = (enabled = true) =>
   useQuery({
     queryKey: qk.me,
+    enabled,
     queryFn: async () => {
       try { return await api<Me>('GET', '/me'); } catch (e) {
         if (e instanceof ApiError && e.status === 401) { setToken(null); return null; }
