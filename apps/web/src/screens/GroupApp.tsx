@@ -42,7 +42,8 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   // máy yếu có thể tải lại trang lúc mở camera. Phiên không giám sát chạy tiếp.
   const resumed = useRef(false);
   useEffect(() => {
-    if (!d || resumed.current) return;
+    // Chỉ xử lý phiên đang dở khi đã có dữ liệu mới từ máy chủ, không dựa vào dữ liệu nhớ trên máy.
+    if (!d || resumed.current || q.dataUpdatedAt === 0) return;
     resumed.current = true;
     const a = d.active;
     if (!a || flow) return;

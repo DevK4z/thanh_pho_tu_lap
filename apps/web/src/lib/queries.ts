@@ -2,6 +2,7 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dkey, type GroupDetail, type GroupQuestion, type GroupSummary, type Me, type Player, type PublicConfig, type RankRange, type Ranking, type SessionLog, type SpotDraw } from '@tptl/shared';
 import { api, ApiError, setToken } from './api';
+import { clearCache, readCache, writeCache } from './cache';
 
 export const qk = {
   config: ['config'] as const,
@@ -17,14 +18,15 @@ export const qk = {
 
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api<PublicConfig>('GET', '/config'), staleTime: Infinity, retry: 1 });
 
-/** null khi chưa đăng nhập hoặc token hết hạn. */
-export const useMe = (enabled = true) =>
+/** null khi chưa đăng nhập hoặc token hết hạn. Hiện ngay dữ liệu lần trước (nếu có) rồi cập nhật khi máy chủ trả lời. */
+export const useMe = () =>
   useQuery({
     queryKey: qk.me,
-    enabled,
+    initialData: () => readCache<Me>('me'),
+    initialDataUpdatedAt: 0,
     queryFn: async () => {
-      try { return await api<Me>('GET', '/me'); } catch (e) {
-        if (e instanceof ApiError && e.status === 401) { setToken(null); return null; }
+      try { return writeCache('me', await api<Me>('GET', '/me')); } catch (e) {
+        if (e instanceof ApiError && e.status === 401) { setToken(null); clearCache(); return null; }
         throw e;
       }
     },
@@ -36,7 +38,14 @@ export const useGroups = (enabled = true) => useQuery({ queryKey: qk.groups, que
 
 /** Dữ liệu nhóm tự làm mới định kỳ để thấy tiến độ của các thành viên khác. */
 export const useGroup = (gid: string, live = true) =>
-  useQuery({ queryKey: qk.group(gid), queryFn: () => api<GroupDetail>('GET', `/groups/${gid}?day=${dkey(Date.now())}`), refetchInterval: live ? 20_000 : false });
+  useQuery({
+    queryKey: qk.group(gid),
+    // Hiện ngay thành phố lần trước; dataUpdatedAt = 0 cho biết đây là dữ liệu cũ chưa được máy chủ xác nhận.
+    initialData: () => readCache<GroupDetail>('group:' + gid),
+    initialDataUpdatedAt: 0,
+    queryFn: async () => writeCache('group:' + gid, await api<GroupDetail>('GET', `/groups/${gid}?day=${dkey(Date.now())}`)),
+    refetchInterval: live ? 20_000 : false,
+  });
 
 export const useLogs = (gid: string, pid: string | null) =>
   useQuery({ queryKey: qk.logs(gid, pid || ''), queryFn: () => api<SessionLog[]>('GET', `/groups/${gid}/players/${pid}/sessions`), enabled: !!pid });
@@ -53,6 +62,8 @@ export function usePatchMyPlayer(gid: string) {
 
 /** Đổi tài khoản: bỏ dữ liệu của tài khoản cũ nhưng giữ query `me` (đang có màn hình theo dõi) và cấu hình. */
 function switchAccount(qc: QueryClient, me: Me | null) {
+  clearCache();
+  if (me) writeCache('me', me);
   qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' && q.queryKey[0] !== 'config' });
   qc.setQueryData(qk.me, me);
 }
