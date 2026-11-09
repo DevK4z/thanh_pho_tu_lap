@@ -3,7 +3,7 @@
 import { resolve } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../api/src/app';
@@ -106,7 +106,8 @@ describe('giao diện + API', () => {
     await find('Chưa có cảnh báo nào. Giữ vững nhé!');
 
     // Thoát toàn màn hình (như bấm Escape) rồi quay lại kịp trong 3 giây: chỉ ghi cảnh báo.
-    await document.exitFullscreen();
+    // Bọc trong act để React xử lý xong sự kiện thoát toàn màn hình trước khi kiểm tra.
+    await act(async () => { await document.exitFullscreen(); });
     await find('Bạn đang rời khỏi phiên!');
     fireEvent.click(btn('Quay lại toàn màn hình'));
     await find(/quay lại kịp trong thời gian ân hạn/);
