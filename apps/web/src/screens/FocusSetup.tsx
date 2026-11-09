@@ -160,7 +160,7 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
         </div>
         {a.field && (
           <p className="text-[13px] text-muted">
-            Phiên này cần 3 ảnh hiện trường: lúc bắt đầu (trong 5 phút đầu), giữa phiên và lúc kết thúc. Ứng dụng xin quyền vị trí để ghi kèm ảnh
+            Phiên này cần 2 ảnh hiện trường: lúc bắt đầu (trong 5 phút đầu) và lúc kết thúc. Hết giờ, mã xác thực tự hiện ra; viết mã ra giấy và chụp trong 3 phút. Ứng dụng xin quyền vị trí để ghi kèm ảnh
             (làm tròn khoảng 100 m, chỉ trưởng nhóm xem); không cho phép thì ảnh vẫn gửi được nhưng không có vị trí.
           </p>
         )}

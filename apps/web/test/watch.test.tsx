@@ -117,14 +117,15 @@ describe('ảnh hiện trường', () => {
     expect(onFailed).toHaveBeenCalledWith(expect.objectContaining({ kind: 'violation' }));
   });
 
-  it('vận động: có thẻ ảnh hiện trường; giữa phiên mới hiện nút chụp ảnh giữa phiên', async () => {
+  it('vận động: chỉ có ảnh bắt đầu (5 phút đầu) và ảnh kết thúc có mã, không còn ảnh giữa phiên', async () => {
     mount(session('move'));
     await tick(0);
     expect(screen.getByText('Ảnh hiện trường')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Chụp ảnh giữa phiên' })).toBeNull();
-    await tick(100_000);
-    expect(screen.getByRole('button', { name: 'Chụp ảnh giữa phiên' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Chụp ảnh bắt đầu' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Chụp ảnh bắt đầu' })).toBeTruthy();
+    expect(screen.queryByText(/giữa phiên/)).toBeNull();
+    expect(screen.getByText('Ảnh kết thúc (có mã xác thực)')).toBeTruthy();
+    await tick(240_000);
+    expect(screen.getByRole('button', { name: 'Chụp ảnh bắt đầu' })).toBeTruthy();
   });
 });
 

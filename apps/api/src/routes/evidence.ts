@@ -4,7 +4,7 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  ACTS, LIMITS, MIN_RECALL_WORDS, DAY_RE, PROOF_SECONDS, PROOF_TRIES, RECALL_PASS, weekKey, wordCount,
+  ACTS, FIELD_PROOF_SECONDS, LIMITS, MIN_RECALL_WORDS, DAY_RE, PROOF_SECONDS, PROOF_TRIES, RECALL_PASS, weekKey, wordCount,
   type ProofState, type RecallResult, type SpotDraw, type SpotPick, type SpotResult,
 } from '@tptl/shared';
 import { aiOff } from '../ai';
@@ -63,13 +63,23 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
     const { sid } = parse(uuidParam('sid'), req.params);
     const { pages } = parse(z.object({ pages: z.number().int().min(1).max(5000).default(100) }), req.body ?? {});
     const s = await activeOwned(u, sid);
+    const field = ACTS[s.act].field;
     if (s.proofStatus === 'ok') throw new HttpError(409, 'proof_done', 'Ảnh của phiên này đã khớp.');
     if (s.proofTries >= PROOF_TRIES) throw new HttpError(409, 'proof_no_tries', `Đã hết ${PROOF_TRIES} lần thử cho phiên này.`);
-    if (!ai) return saveProof(sid, { proofStatus: 'na' });
-    return saveProof(sid, {
-      proofStatus: 'ready', proofCode: makeCode(), proofPage: s.act === 'read' ? randomInt(1, pages + 1) : null,
-      proofExp: new Date(Date.now() + PROOF_SECONDS * 1000), proofReason: '',
-    });
+    // Vận động, chăm cây vẫn có mã khi chưa bật AI: trưởng nhóm đối chiếu mã trong ảnh lúc duyệt.
+    if (!ai && !field) return saveProof(sid, { proofStatus: 'na' });
+    if (!field) {
+      return saveProof(sid, {
+        proofStatus: 'ready', proofCode: makeCode(), proofPage: s.act === 'read' ? randomInt(1, pages + 1) : null,
+        proofExp: new Date(Date.now() + PROOF_SECONDS * 1000), proofReason: '',
+      });
+    }
+    // Vận động, chăm cây: mã tự hiện lúc hết giờ và hết hạn đúng FIELD_PROOF_SECONDS sau khi kết thúc, dù lấy mã lúc nào.
+    const exp = s.startedAt.getTime() + s.plannedSec * 1000 + FIELD_PROOF_SECONDS * 1000;
+    if (Date.now() > exp + PROOF_LATE_MS) throw new HttpError(409, 'proof_window_closed', `Đã quá ${FIELD_PROOF_SECONDS / 60} phút sau khi kết thúc nên không lấy được mã nữa. Phiên sẽ chờ trưởng nhóm duyệt.`);
+    // Mở lại trang thì giữ mã cũ; chỉ đổi mã khi ảnh trước chưa khớp.
+    if (s.proofCode && (s.proofStatus === 'ready' || s.proofStatus === 'sent')) return proofState(s);
+    return saveProof(sid, { proofStatus: 'ready', proofCode: makeCode(), proofPage: null, proofExp: new Date(exp), proofReason: '' });
   });
 
   /** Gửi ảnh. Đọc sách: ảnh chỉ đi qua Gemini để kiểm tra, không lưu. Vận động, chăm cây: lưu làm ảnh kết thúc để trưởng nhóm duyệt. */
@@ -79,11 +89,15 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
     const { image, ...geo } = parse(z.object({ image: z.string().min(16).max(MAX_IMAGE_CHARS), ...geoBody }), req.body);
     if (!isJpeg(image)) throw new HttpError(400, 'bad_image', 'Ảnh không đọc được, hãy chụp lại.');
     const s = await activeOwned(u, sid);
-    if (ACTS[s.act].field) await savePhoto(db, sid, 'end', image, geo);
-    if (!ai) return saveProof(sid, { proofStatus: 'na' });
+    const field = ACTS[s.act].field;
+    if (!ai && !field) return saveProof(sid, { proofStatus: 'na' });
     if (s.proofStatus === 'ok') throw new HttpError(409, 'proof_done', 'Ảnh của phiên này đã khớp.');
     if (!s.proofCode || !s.proofExp) throw new HttpError(409, 'proof_no_code', 'Hãy lấy mã thử thách trước.');
-    if (Date.now() > s.proofExp.getTime() + PROOF_LATE_MS) throw new HttpError(409, 'proof_expired', 'Mã đã hết hạn. Hãy lấy mã mới rồi chụp lại.');
+    if (Date.now() > s.proofExp.getTime() + PROOF_LATE_MS) {
+      throw new HttpError(409, 'proof_expired', field ? `Đã quá ${FIELD_PROOF_SECONDS / 60} phút sau khi kết thúc. Phiên sẽ chờ trưởng nhóm duyệt.` : 'Mã đã hết hạn. Hãy lấy mã mới rồi chụp lại.');
+    }
+    if (field) await savePhoto(db, sid, 'end', image, geo);
+    if (!ai) return saveProof(sid, { proofStatus: 'sent', proofReason: 'Đã gửi ảnh có mã; trưởng nhóm sẽ đối chiếu khi duyệt.' });
 
     // Giữ chỗ một lượt trước khi gọi AI, để gửi đồng thời nhiều ảnh cũng không vượt số lần thử.
     const [slot] = await db.update(focusSessions).set({ proofTries: sql`${focusSessions.proofTries} + 1` })

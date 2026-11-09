@@ -164,17 +164,17 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       const tier = tierFor(minutes);
       // Có ảnh khớp mã, hoặc phiên trên máy đạt điểm tập trung đủ cao. Chưa xác minh vẫn nhận công trình nhưng phút không được tính.
       let verified = s.proofStatus === 'ok' || (s.mode === 'screen' && focus >= VERIFY_FOCUS);
-      // Vận động, chăm cây: cần đủ ảnh bắt đầu, giữa phiên và ảnh kết thúc khớp mã; thiếu thì chờ trưởng nhóm duyệt.
+      // Vận động, chăm cây: cần ảnh bắt đầu và ảnh kết thúc khớp mã xác thực; thiếu thì chờ trưởng nhóm duyệt.
       if (ACTS[s.act].field) {
         const kinds = (await tx.select({ k: sessionPhotos.kind }).from(sessionPhotos).where(eq(sessionPhotos.sessionId, sid))).map((r) => r.k);
-        verified = s.proofStatus === 'ok' && kinds.includes('start') && kinds.includes('mid');
+        verified = s.proofStatus === 'ok' && kinds.includes('start');
       }
       const shiny = focus >= 85 && verified;
       const gained = verified ? minutes : 0;
       const hasClaim = !!(s.goal || body.note);
 
       await tx.update(focusSessions).set({
-        status: 'done', endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa, qc, focus, self: body.self, note: body.note, questions: q, verified, proofCode: null, recallDue: hasClaim,
+        status: 'done', endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa, qc, focus, self: body.self, note: body.note, questions: q, verified, proofCode: ACTS[s.act].field ? s.proofCode : null, recallDue: hasClaim,
       }).where(eq(focusSessions.id, sid));
       // Chỉ hỏi nhớ lại về phiên gần nhất.
       if (hasClaim) await tx.update(focusSessions).set({ recallDue: false }).where(and(eq(focusSessions.playerId, p.id), eq(focusSessions.recallDue, true), ne(focusSessions.id, sid)));

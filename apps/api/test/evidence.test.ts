@@ -113,12 +113,12 @@ describe('lớp 1: mã thử thách và ảnh', () => {
 
   it('chặn lấy mã sớm, gửi quá hạn, ảnh không phải JPEG và quá 3 lần thử', async () => {
     const u = await setup('Chi');
-    const st = (await call('POST', `/groups/${u.gid}/sessions`, u.token, { act: 'move', minutes: 5, goal: '', day: day() })).body as ActiveSession;
+    const st = (await call('POST', `/groups/${u.gid}/sessions`, u.token, { act: 'read', minutes: 5, goal: '', day: day() })).body as ActiveSession;
     expect((await call('POST', `/sessions/${st.id}/proof/code`, u.token, {})).body.error.code).toBe('too_early');
     shift += 300_000;
     expect((await call('POST', `/sessions/${st.id}/proof`, u.token, { image: JPEG })).body.error.code).toBe('proof_no_code');
-    const code = (await call('POST', `/sessions/${st.id}/proof/code`, u.token)).body as ProofState;
-    expect(code.page).toBeNull();
+    const code = (await call('POST', `/sessions/${st.id}/proof/code`, u.token, { pages: 30 })).body as ProofState;
+    expect(code.page).toBeGreaterThanOrEqual(1);
     expect((await call('POST', `/sessions/${st.id}/proof`, u.token, { image: PNG })).body.error.code).toBe('bad_image');
 
     shift += 136_000;

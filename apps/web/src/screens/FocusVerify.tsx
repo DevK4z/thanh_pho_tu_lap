@@ -50,7 +50,7 @@ export function FocusVerify({ me, s, m, onDone, onHonest }: { me: Me; s: ActiveS
         <p className="mt-1.5 text-muted">Bạn đã hoàn thành {Math.round(s.plannedSec / 60)} phút cam kết. Trả lời các câu hỏi sau để xác nhận phiên.</p>
       </div>
       <ProofCard s={{ ...s, proof }} onChange={setProof} />
-      {a.field && <FieldPhotoCard s={s} kinds={proof.status === 'na' ? ['end'] : []} refresh={proof.status + proof.tries} />}
+      {a.field && <FieldPhotoCard s={s} canCapture={false} refresh={proof.status + proof.tries} />}
       {s.verify.map((q, qi) => (
         <Card key={qi}>
           <h3>{q.q}</h3>

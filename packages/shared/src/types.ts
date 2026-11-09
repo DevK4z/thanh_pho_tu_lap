@@ -93,8 +93,9 @@ export interface ActiveSession {
   proof: ProofState;
 }
 
-/** none: chưa lấy mã · ready: đã có mã, chờ ảnh · ok: ảnh khớp · fail: ảnh chưa khớp · na: máy chủ chưa bật kiểm tra ảnh. */
-export type ProofStatus = 'none' | 'ready' | 'ok' | 'fail' | 'na';
+/** none: chưa lấy mã · ready: đã có mã, chờ ảnh · ok: ảnh khớp · fail: ảnh chưa khớp · na: máy chủ chưa bật kiểm tra ảnh
+ * · sent: đã gửi ảnh có mã nhưng không có kiểm tra tự động, trưởng nhóm đối chiếu (vận động, chăm cây). */
+export type ProofStatus = 'none' | 'ready' | 'ok' | 'fail' | 'na' | 'sent';
 export interface ProofState {
   status: ProofStatus;
   code: string | null;
@@ -302,6 +303,8 @@ export interface FieldReviewItem {
   self: boolean;
   act: ActKey; day: string; minutes: number; startedAt: number; endedAt: number | null;
   verified: boolean; proofStatus: ProofStatus; review: SpotResult | null;
+  /** Mã xác thực của ảnh kết thúc, để trưởng nhóm đối chiếu. */
+  proofCode: string | null;
   photos: FieldPhoto[];
 }
 export interface FieldReview { items: FieldReviewItem[] }

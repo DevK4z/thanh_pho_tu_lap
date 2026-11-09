@@ -1,6 +1,6 @@
 /* Lớp 1: lấy mã thử thách, chụp ảnh và gửi kiểm tra. Ảnh được nén ở trình duyệt, gửi Gemini kiểm tra, ứng dụng không lưu lại. */
 import { useEffect, useRef, useState } from 'react';
-import { ACTS, PROOF_THING, PROOF_TRIES, VERIFY_FOCUS, type ActiveSession, type ProofState } from '@tptl/shared';
+import { ACTS, FIELD_PROOF_SECONDS, PROOF_THING, PROOF_TRIES, VERIFY_FOCUS, type ActiveSession, type ProofState } from '@tptl/shared';
 import { Banner, Button, Card, Field, inputCls, Pill, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
 import { mmss } from '../lib/format';
@@ -31,21 +31,30 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
   const [pages, setPages] = useState(readPages);
   const input = useRef<HTMLInputElement>(null);
   const p = s.proof;
-  const left = usePhotoCountdown(p.status === 'ready' || p.status === 'fail' ? p.expiresAt : null);
+  const left = usePhotoCountdown(p.status === 'ready' || p.status === 'fail' || p.status === 'sent' ? p.expiresAt : null);
   const need = s.mode === 'offline';
   const noTries = p.tries >= PROOF_TRIES;
   const thing = PROOF_THING[s.act];
   // Vận động, chăm cây: ảnh này cũng là ảnh kết thúc lưu cho trưởng nhóm duyệt, nên nén nhỏ và kèm vị trí.
   const field = ACTS[s.act].field;
 
+  const [closed, setClosed] = useState('');
   async function getCode() {
     setBusy('code');
     try {
       if (s.act === 'read') savePages(pages);
       onChange(await api<ProofState>('POST', `/sessions/${s.id}/proof/code`, s.act === 'read' ? { pages } : {}));
-    } catch (e) { toast(errorMessage(e)); }
+    } catch (e) {
+      if (field) setClosed(errorMessage(e));
+      else toast(errorMessage(e));
+    }
     setBusy(null);
   }
+  // Vận động, chăm cây: mã xác thực tự hiện ra ngay khi hết giờ, không cần bấm.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (field && p.status === 'none' && !asked.current) { asked.current = true; getCode(); }
+  }, [field, p.status]); // eslint-disable-line react-hooks/exhaustive-deps
   async function send(file: File) {
     setBusy('photo');
     try {
@@ -56,9 +65,9 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
     if (input.current) input.current.value = '';
   }
 
-  const pill = p.status === 'ok' ? <Pill tone="good">Đã xác minh</Pill> : p.status === 'fail' ? <Pill tone="bad">Chưa khớp</Pill> : <Pill tone="warn">Chưa xác minh</Pill>;
+  const pill = p.status === 'ok' ? <Pill tone="good">Đã xác minh</Pill> : p.status === 'sent' ? <Pill tone="good">Đã gửi, chờ duyệt</Pill> : p.status === 'fail' ? <Pill tone="bad">Chưa khớp</Pill> : <Pill tone="warn">Chưa xác minh</Pill>;
   const after = field
-    ? 'Ảnh kết thúc khớp mã cùng ảnh bắt đầu và ảnh giữa phiên giúp phiên được xác minh ngay; thiếu thì phiên chờ trưởng nhóm duyệt.'
+    ? `Ảnh có mã xác thực chụp trong ${FIELD_PROOF_SECONDS / 60} phút sau khi kết thúc, cùng ảnh bắt đầu, giúp phiên được xác minh ngay; thiếu thì phiên chờ trưởng nhóm duyệt.`
     : need
     ? 'Không có ảnh khớp, phiên vẫn hoàn thành nhưng ở trạng thái “chưa xác minh”: vẫn nhận công trình, số phút không tính vào giai đoạn nhà và không có điểm nhóm.'
     : `Phiên trên máy được xác minh qua theo dõi rời trang khi điểm tập trung từ ${VERIFY_FOCUS}. Ảnh giúp xác minh khi điểm thấp hơn.`;
@@ -75,7 +84,9 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
           {field ? 'Hệ thống chưa bật kiểm tra mã tự động. Hãy chụp ảnh kết thúc ở thẻ Ảnh hiện trường bên dưới; trưởng nhóm sẽ duyệt.' : 'Hệ thống chưa bật kiểm tra ảnh tự động. Phiên vẫn hoàn thành được nhưng ở trạng thái “chưa xác minh”; hãy báo trưởng nhóm nếu thấy thông báo này.'}
         </p>
       )}
-      {p.status === 'none' && (
+      {field && closed && <Banner tone="bad"><span className="text-[13px]">{closed}</span></Banner>}
+      {field && p.status === 'none' && !closed && <p className="text-[13px]">Đang tạo mã xác thực…</p>}
+      {!field && p.status === 'none' && (
         <>
           <p>
             Bấm lấy mã rồi viết mã ra giấy, đặt cạnh <b>{thing}</b> và chụp trong vòng 2 phút. Không cần chụp mặt. Ảnh được gửi đến Gemini của Google để kiểm tra, ứng dụng không lưu lại.
@@ -88,12 +99,14 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
           <div><Button variant="primary" disabled={!!busy} onClick={getCode}>{busy === 'code' ? 'Đang tạo mã…' : 'Lấy mã thử thách'}</Button></div>
         </>
       )}
-      {(p.status === 'ready' || p.status === 'fail') && (
+      {(p.status === 'ready' || p.status === 'fail' || p.status === 'sent') && (
         <>
+          {field && p.status !== 'sent' && <p>Viết <b>mã xác thực</b> dưới đây ra giấy, đặt cạnh <b>{thing}</b> rồi chụp. Không cần chụp mặt.</p>}
+          {p.status === 'sent' && <p className="text-[13px]">{p.reason} Bạn vẫn chụp lại được trước khi hết giờ.</p>}
           {p.code && <p className="font-hud text-center text-[34px] tracking-wider text-ptitle" aria-label="Mã thử thách">{p.code}</p>}
           {p.page != null && <p className="text-center">Mở sách đến <b>trang {p.page}</b>, đặt tờ giấy có mã lên trang đó rồi chụp.</p>}
           <p className="text-[13px] text-muted" aria-live="polite">
-            {left > 0 ? `Còn ${mmss(left)} để chụp.` : 'Mã đã hết hạn. Bấm “Lấy mã mới”.'} Đã dùng {p.tries}/{PROOF_TRIES} lần gửi ảnh.
+            {left > 0 ? `Còn ${mmss(left)} để chụp.` : field ? 'Đã hết thời gian chụp; phiên sẽ chờ trưởng nhóm duyệt.' : 'Mã đã hết hạn. Bấm “Lấy mã mới”.'} Đã dùng {p.tries}/{PROOF_TRIES} lần gửi ảnh.
           </p>
           {p.status === 'fail' && <Banner tone="bad"><span className="text-[13px]">Chưa khớp: {p.reason}{noTries ? ' Đã hết lượt thử.' : ''}</span></Banner>}
           {!noTries && (
@@ -101,7 +114,7 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
               <input ref={input} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Chụp ảnh bằng chứng" aria-hidden="true" tabIndex={-1}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); }} />
               <Button variant="primary" disabled={!!busy || left <= 0} onClick={() => input.current?.click()}>{busy === 'photo' ? 'Đang kiểm tra ảnh…' : 'Chụp ảnh bằng chứng'}</Button>
-              <Button disabled={!!busy} onClick={getCode}>Lấy mã mới</Button>
+              {(!field || (p.status === 'fail' && left > 0)) && <Button disabled={!!busy} onClick={getCode}>Lấy mã mới</Button>}
             </div>
           )}
         </>

@@ -58,12 +58,31 @@ describe('ProofCard', () => {
 
   it('mã hết hạn thì khóa nút chụp, vẫn lấy được mã mới; chưa bật AI thì báo rõ', () => {
     const old: ProofState = { ...noProof, status: 'ready', code: 'SAO-12', expiresAt: Date.now() - 1000 };
-    const { unmount } = render(<Proof s={session({ act: 'plant', proof: old })} />);
+    const { unmount } = render(<Proof s={session({ act: 'read', proof: old })} />);
     expect(btn('Chụp ảnh bằng chứng')).toHaveProperty('disabled', true);
     expect(btn('Lấy mã mới')).toHaveProperty('disabled', false);
     unmount();
     render(<Proof s={session({ proof: { ...noProof, status: 'na' } })} />);
     expect(screen.getByText(/chưa bật kiểm tra ảnh tự động/)).toBeTruthy();
+  });
+
+  it('vận động, chăm cây: hết giờ là mã xác thực tự hiện, không cần bấm, không cho đổi mã tùy ý', async () => {
+    const ready: ProofState = { ...noProof, status: 'ready', code: 'GIO-35', expiresAt: Date.now() + 180_000 };
+    api.mockResolvedValueOnce(ready);
+    render(<Proof s={session({ act: 'plant' })} />);
+    await screen.findByText('GIO-35');
+    expect(api).toHaveBeenCalledWith('POST', '/sessions/s1/proof/code', {});
+    expect(screen.queryByRole('button', { name: 'Lấy mã thử thách' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Lấy mã mới' })).toBeNull();
+    expect(screen.getAllByText(/mã xác thực/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Còn 0[23]:\d\d để chụp/)).toBeTruthy();
+  });
+
+  it('vận động: quá 3 phút sau khi kết thúc thì báo rõ không lấy được mã', async () => {
+    const { ApiError } = await import('../src/lib/api');
+    api.mockRejectedValueOnce(new ApiError(409, 'proof_window_closed', 'Đã quá 3 phút sau khi kết thúc nên không lấy được mã nữa.'));
+    render(<Proof s={session({ act: 'move' })} />);
+    await screen.findByText(/Đã quá 3 phút sau khi kết thúc/);
   });
 
   it('phiên trên máy: ảnh không bắt buộc và không hỏi số trang', () => {

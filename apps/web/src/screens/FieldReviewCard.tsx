@@ -8,7 +8,7 @@ import { dmy, hm } from '../lib/format';
 import { distanceM } from '../lib/photo';
 import { qk } from '../lib/queries';
 
-const LABEL: Record<PhotoKind, string> = { start: 'Bắt đầu', mid: 'Giữa phiên', end: 'Kết thúc' };
+const LABEL: Record<PhotoKind, string> = { start: 'Bắt đầu', mid: 'Giữa phiên', end: 'Kết thúc (có mã)' };
 
 function Photos({ it }: { it: FieldReviewItem }) {
   const [urls, setUrls] = useState<Partial<Record<PhotoKind, string>>>({});
@@ -25,8 +25,8 @@ function Photos({ it }: { it: FieldReviewItem }) {
     return () => { alive = false; made.forEach((u) => URL.revokeObjectURL(u)); };
   }, [it.sid, it.photos]);
   return (
-    <div className="grid grid-cols-3 gap-2">
-      {(['start', 'mid', 'end'] as PhotoKind[]).map((k) => {
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {(it.photos.some((p) => p.kind === 'mid') ? ['start', 'mid', 'end'] as PhotoKind[] : ['start', 'end'] as PhotoKind[]).map((k) => {
         const p = it.photos.find((x) => x.kind === k);
         return (
           <figure key={k} className="m-0 flex flex-col gap-1 text-[12px]">
@@ -62,9 +62,9 @@ function Item({ gid, it }: { gid: string; it: FieldReviewItem }) {
         <div className="min-w-0 text-sm">
           <b>{it.name}</b> <span className="text-muted">({it.participantCode ?? 'chưa có mã'})</span>
           <div className="text-[13px] text-muted">
-            {dmy(it.day)} · {ACTS[it.act].n} · {it.minutes} phút · {it.photos.length}/3 ảnh
+            {dmy(it.day)} · {ACTS[it.act].n} · {it.minutes} phút · {it.photos.filter((p) => p.kind !== 'mid').length}/2 ảnh
             {a && b ? ` · đầu và cuối cách nhau khoảng ${Math.round(distanceM(a, b))} m` : ''}
-            {it.proofStatus === 'ok' ? ' · mã cuối khớp' : ''}
+            {it.proofCode ? ` · mã xác thực ${it.proofCode}` : ''}{it.proofStatus === 'ok' ? ' (AI xác nhận khớp)' : it.proofStatus === 'fail' ? ' (AI báo chưa khớp)' : ''}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -88,7 +88,7 @@ export function FieldReviewCard({ gid }: { gid: string }) {
     <Card>
       <h3>Ảnh hiện trường (vận động, chăm cây · 14 ngày)</h3>
       <p className="text-[13px] text-muted">
-        Phiên đủ ảnh bắt đầu, giữa phiên và ảnh kết thúc khớp mã được xác minh tự động. Phiên thiếu ảnh hoặc chưa kiểm tra được mã chờ bạn duyệt:
+        Phiên có ảnh bắt đầu và ảnh kết thúc khớp mã xác thực được xác minh tự động. Phiên thiếu ảnh hoặc chưa kiểm tra được mã chờ bạn duyệt (đối chiếu mã trong ảnh kết thúc với mã ghi ở dòng trên):
         Đạt thì phút được tính vào giai đoạn nhà và điểm nhóm. Ảnh tự xóa sau 45 ngày.
       </p>
       {q.isError ? <p className="text-[13px] text-muted">{errorMessage(q.error)}</p>

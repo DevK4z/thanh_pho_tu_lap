@@ -8,7 +8,7 @@ export interface Activity {
   mode: Mode;
   /** Cách giám sát: toàn màn hình; giữ ứng dụng mở và màn hình sáng; chỉ câu kiểm tra hiện diện (được mở tài liệu); không giám sát (cất máy đi). */
   watch: Watch;
-  /** Cần ảnh hiện trường lúc bắt đầu, giữa phiên và kết thúc (vận động, chăm cây). */
+  /** Cần ảnh hiện trường lúc bắt đầu và lúc kết thúc kèm mã xác thực (vận động, chăm cây). */
   field: boolean;
   /** Mô tả ngắn hiển thị khi chọn hoạt động. */
   d: string;
@@ -26,8 +26,8 @@ export const ACTS: Record<ActKey, Activity> = {
   study: { n: 'Học trên máy', mode: 'screen', watch: 'checks', field: false, d: 'Học bằng tài liệu trên máy: được mở Word, PDF, trang tra cứu. Thỉnh thoảng có câu kiểm tra hiện diện; máy sẽ kêu để bạn quay lại trả lời trong 90 giây. Cuối phiên ghi lại việc đã làm được.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong đề cương môn Sử', needNote: true },
   deep: { n: 'Tập trung tuyệt đối', mode: 'screen', watch: 'fullscreen', field: false, d: 'Chỉ dùng khi học ngay trong trang web này: chạy toàn màn hình, đổi tab hoặc mở ứng dụng khác quá 3 giây là thất bại.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
   write: { n: 'Viết và suy ngẫm', mode: 'screen', watch: 'fullscreen', field: false, d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
-  move: { n: 'Vận động', mode: 'offline', watch: 'none', field: true, d: 'Chạy bộ, tập thể dục, đạp xe. Chụp ảnh hiện trường lúc bắt đầu, giữa phiên và lúc kết thúc; giữa các lần chụp thì cất điện thoại.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
-  plant: { n: 'Chăm cây', mode: 'offline', watch: 'visible', field: true, d: 'Trồng, tưới, tỉa cây. Giữ ứng dụng mở, đặt điện thoại gần đó; chụp ảnh hiện trường lúc bắt đầu, giữa phiên và lúc kết thúc.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
+  move: { n: 'Vận động', mode: 'offline', watch: 'none', field: true, d: 'Chạy bộ, tập thể dục, đạp xe. Chụp ảnh lúc bắt đầu, rồi cất điện thoại. Hết giờ, mã xác thực tự hiện ra: chụp ảnh có mã trong 3 phút.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
+  plant: { n: 'Chăm cây', mode: 'offline', watch: 'visible', field: true, d: 'Trồng, tưới, tỉa cây. Giữ ứng dụng mở, đặt điện thoại gần đó; chụp ảnh lúc bắt đầu. Hết giờ, mã xác thực tự hiện ra: chụp ảnh có mã trong 3 phút.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
 };
 export const ACT_KEYS: ActKey[] = ['read', 'study', 'deep', 'write', 'move', 'plant'];
 
@@ -109,12 +109,12 @@ export const RECALL_PASS = 60;
 export const RECALL_WINDOW_DAYS = 4;
 export const MIN_RECALL_WORDS = 4;
 /* Ảnh hiện trường (vận động, chăm cây). */
+/** 'mid' chỉ còn ở dữ liệu cũ (trước khi bỏ ảnh giữa phiên). */
 export type PhotoKind = 'start' | 'mid' | 'end';
 /** Ảnh bắt đầu phải chụp trong khoảng này kể từ lúc bấm bắt đầu. */
 export const FIELD_START_SECONDS = 300;
-/** Ảnh giữa phiên chụp trong khoảng từ 30% đến 80% thời gian phiên. */
-export const FIELD_MID_FROM = 0.3;
-export const FIELD_MID_TO = 0.8;
+/** Vận động, chăm cây: mã xác thực tự hiện lúc hết giờ, phải chụp ảnh có mã trong khoảng này sau khi kết thúc (tính theo giờ máy chủ). */
+export const FIELD_PROOF_SECONDS = 180;
 /** Ảnh hiện trường tự xóa sau số ngày này (thực nghiệm 28 ngày cộng thời gian phân tích). */
 export const PHOTO_RETENTION_DAYS = 45;
 /** Vật cần chụp cạnh mã thử thách. */

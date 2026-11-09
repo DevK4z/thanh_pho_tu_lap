@@ -166,7 +166,7 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
           <b>Hãy cất điện thoại.</b> Bạn có thể thoát khỏi ứng dụng. Quay lại sau <b>{hm(s.startedAt + s.plannedSec * 1000)}</b> để trả lời câu hỏi xác nhận và nhận công trình.
         </Banner>
       )}
-      {a.field && <FieldPhotoCard s={s} kinds={['start', 'mid']} pause={ac.pause} resume={ac.resume} />}
+      {a.field && <FieldPhotoCard s={s} canCapture pause={ac.pause} resume={ac.resume} />}
       <div><Button variant="ghost" onClick={() => setQuitAsk(true)} disabled={busy}>Dừng phiên (tính là thất bại)</Button></div>
 
       {ac.away && (

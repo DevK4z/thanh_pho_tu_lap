@@ -1,11 +1,11 @@
-/* Ảnh hiện trường cho vận động, chăm cây (như ứng dụng giám sát hiện trường): ảnh lúc bắt đầu, giữa phiên và kết thúc,
-   thời gian do máy chủ ghi, kèm vị trí. Trưởng nhóm duyệt Đạt hoặc Không đạt. */
+/* Ảnh hiện trường cho vận động, chăm cây (như ứng dụng giám sát hiện trường): ảnh lúc bắt đầu chụp ở đây; ảnh lúc kết thúc
+   kèm mã xác thực đi qua /sessions/:sid/proof. Thời gian do máy chủ ghi, kèm vị trí. Trưởng nhóm duyệt Đạt hoặc Không đạt. */
 import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  ACTS, FIELD_MID_FROM, FIELD_MID_TO, FIELD_START_SECONDS,
-  type FieldPhoto, type FieldReview, type PhotoKind, type SpotResult,
+  ACTS, FIELD_START_SECONDS,
+  type FieldPhoto, type FieldReview, type SpotResult,
 } from '@tptl/shared';
 import type { Ctx, User } from '../app';
 import { focusSessions, players, sessionPhotos } from '../db/schema';
@@ -14,6 +14,7 @@ import { photoData, photoMeta, savePhoto } from '../photos';
 import { requireManager, uuidParam } from './groups';
 import { addDay } from './sessions';
 
+/** Ảnh xem được (gồm 'mid' của dữ liệu cũ). Chỉ ảnh bắt đầu được gửi qua đây; ảnh kết thúc phải có mã xác thực. */
 const KINDS = ['start', 'mid', 'end'] as const;
 /** Cho phép trễ một chút vì còn phải nén và gửi ảnh. */
 const LATE_MS = 15_000;
@@ -42,22 +43,14 @@ export function fieldRoutes(app: FastifyInstance, { db, requireUser, isAdmin }: 
   app.post('/sessions/:sid/photos/:kind', { bodyLimit: MAX_IMAGE_CHARS + 1024 }, async (req): Promise<FieldPhoto[]> => {
     const u = await requireUser(req);
     const { sid } = parse(z.object({ sid: z.string().uuid('mã không hợp lệ') }), req.params);
-    const { kind } = parse(z.object({ kind: z.enum(KINDS) }), req.params);
+    const { kind } = parse(z.object({ kind: z.literal('start', { errorMap: () => ({ message: 'chỉ gửi được ảnh bắt đầu; ảnh kết thúc chụp kèm mã xác thực' }) }) }), req.params);
     const { image, ...geo } = parse(z.object({ image: z.string().min(16).max(MAX_IMAGE_CHARS), ...geoBody }), req.body);
     if (!isJpeg(image)) throw new HttpError(400, 'bad_image', 'Ảnh không đọc được, hãy chụp lại.');
     const { s, p } = await sessionOf(sid);
     if (p.userId !== u.id) throw new HttpError(404, 'session_not_found', 'Không tìm thấy phiên.');
     if (!ACTS[s.act].field) throw new HttpError(400, 'not_field', 'Hoạt động này không cần ảnh hiện trường.');
     if (s.status !== 'active') throw new HttpError(409, 'session_ended', 'Phiên này đã kết thúc.');
-    const t = Date.now(), t0 = s.startedAt.getTime(), len = s.plannedSec * 1000;
-    const windowOf: Record<PhotoKind, [number, number]> = {
-      start: [t0, t0 + FIELD_START_SECONDS * 1000],
-      mid: [t0 + FIELD_MID_FROM * len, t0 + FIELD_MID_TO * len],
-      end: [t0 + len - 2000, Infinity],
-    };
-    const [from, to] = windowOf[kind];
-    if (t < from) throw new HttpError(409, 'photo_too_early', 'Chưa đến lúc chụp ảnh này.');
-    if (t > to + LATE_MS) throw new HttpError(409, 'photo_too_late', 'Đã quá giờ chụp ảnh này.');
+    if (Date.now() > s.startedAt.getTime() + FIELD_START_SECONDS * 1000 + LATE_MS) throw new HttpError(409, 'photo_too_late', 'Đã quá giờ chụp ảnh bắt đầu.');
     await savePhoto(db, sid, kind, image, geo);
     req.log.info({ sid, kind, geo: geo.lat != null }, 'field_photo');
     return photoMeta(db, sid);
@@ -97,7 +90,7 @@ export function fieldRoutes(app: FastifyInstance, { db, requireUser, isAdmin }: 
       items: rows.map(({ s, p }) => ({
         sid: s.id, playerId: p.id, name: p.name, participantCode: p.participantCode, self: p.userId === u.id,
         act: s.act, day: s.day, minutes: Math.round(s.plannedSec / 60), startedAt: s.startedAt.getTime(), endedAt: s.endedAt ? s.endedAt.getTime() : null,
-        verified: s.verified, proofStatus: s.proofStatus, review: s.review,
+        verified: s.verified, proofStatus: s.proofStatus, review: s.review, proofCode: s.proofCode,
         photos: metas.filter((m) => m.sessionId === s.id).map((m) => ({ kind: m.kind, takenAt: m.takenAt.getTime(), lat: m.lat, lng: m.lng, acc: m.acc }))
           .sort((a, b) => a.takenAt - b.takenAt),
       })),

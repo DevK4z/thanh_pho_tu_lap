@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { dkey, type ActiveSession, type FieldPhoto, type FieldReview, type Me, type Player, type SessionResult } from '@tptl/shared';
+import { dkey, type ActiveSession, type FieldPhoto, type FieldReview, type Me, type Player, type ProofState, type SessionResult } from '@tptl/shared';
 import type { EvidenceAI } from '../src/ai';
 import { buildApp } from '../src/app';
 import { openDatabase, type Database } from '../src/db/client';
@@ -15,19 +15,21 @@ const KEY = 'khoa-sao-luu-rat-dai-0123456789';
 const realNow = Date.now.bind(Date);
 let shift = 0;
 let app: FastifyInstance;
+let noAi: FastifyInstance;
 let database: Database;
 const ai = { checkPhoto: vi.fn(async () => ({ ok: true, reason: 'Khớp mã.' })), recallQuestion: vi.fn(), judgeRecall: vi.fn() } satisfies EvidenceAI;
 
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });
   app = await buildApp({ db: database.db, env: loadEnv({ GROUP_CREATION: 'open', BACKUP_KEY: KEY }), rateLimit: false, ai });
+  noAi = await buildApp({ db: database.db, env: loadEnv({ GROUP_CREATION: 'open' }), rateLimit: false, ai: null });
   vi.spyOn(Date, 'now').mockImplementation(() => realNow() + shift);
 });
-afterAll(async () => { await app.close(); await database.close(); });
+afterAll(async () => { await app.close(); await noAi.close(); await database.close(); });
 afterEach(() => { shift = 0; });
 
-async function call(method: 'GET' | 'POST', url: string, token?: string, payload?: unknown, headers: Record<string, string> = {}) {
-  const r = await app.inject({ method, url: '/api' + url, payload: payload as object, headers: { ...headers, ...(token ? { authorization: 'Bearer ' + token } : {}) } });
+async function call(method: 'GET' | 'POST', url: string, token?: string, payload?: unknown, headers: Record<string, string> = {}, on = app) {
+  const r = await on.inject({ method, url: '/api' + url, payload: payload as object, headers: { ...headers, ...(token ? { authorization: 'Bearer ' + token } : {}) } });
   return { status: r.statusCode, body: r.headers['content-type']?.includes('json') ? r.json() : r.rawPayload, headers: r.headers };
 }
 let seq = 0;
@@ -58,32 +60,64 @@ async function finish(u: U, s: ActiveSession, withProof = true) {
 }
 
 describe('ảnh hiện trường', () => {
-  it('chụp đúng khung giờ, giờ do máy chủ ghi, vị trí làm tròn; đủ ba ảnh và mã khớp thì xác minh', async () => {
+  it('ảnh bắt đầu có giờ máy chủ và vị trí làm tròn; ảnh kết thúc phải kèm mã xác thực; đủ hai ảnh và mã khớp thì xác minh', async () => {
     const u = await member('An');
     const s = await start(u, 'move');
     const meta = (await photo(u, s.id, 'start')).body as FieldPhoto[];
     expect(meta).toEqual([{ kind: 'start', takenAt: expect.any(Number), lat: 21.029, lng: 105.805, acc: 12 }]);
-    expect((await photo(u, s.id, 'mid')).body.error.code).toBe('photo_too_early');
+    // Không còn ảnh giữa phiên; ảnh kết thúc không gửi riêng được mà phải đi kèm mã.
     shift = 4 * 60_000;
-    expect((await photo(u, s.id, 'mid', {})).status).toBe(200);
-    expect((await photo(u, s.id, 'end')).body.error.code).toBe('photo_too_early');
+    expect((await photo(u, s.id, 'mid')).status).toBe(400);
+    expect((await photo(u, s.id, 'end')).status).toBe(400);
     shift = 10 * 60_000;
     expect((await finish(u, s)).verified).toBe(true);
-    const kinds = (await database.db.select({ k: sessionPhotos.kind, lat: sessionPhotos.lat }).from(sessionPhotos).where(eq(sessionPhotos.sessionId, s.id)));
-    expect(kinds.map((k) => k.k).sort()).toEqual(['end', 'mid', 'start']);
-    // Ảnh giữa phiên không gửi vị trí thì để trống, không bịa.
-    expect(kinds.find((k) => k.k === 'mid')!.lat).toBeNull();
+    const kinds = await database.db.select({ k: sessionPhotos.kind, lat: sessionPhotos.lat }).from(sessionPhotos).where(eq(sessionPhotos.sessionId, s.id));
+    expect(kinds.map((k) => k.k).sort()).toEqual(['end', 'start']);
+    expect(kinds.find((k) => k.k === 'end')!.lat).toBe(21.03);
   });
 
-  it('chặn ảnh bắt đầu quá 5 phút, ảnh giữa phiên quá 80%; thiếu ảnh thì chưa xác minh', async () => {
+  it('mã xác thực hết hạn đúng 3 phút sau khi kết thúc, mở lại trang giữ mã cũ, quá hạn thì không lấy được mã', async () => {
+    const u = await member('Bảo');
+    const s = await start(u, 'plant');
+    await photo(u, s.id, 'start');
+    const end = s.startedAt + 10 * 60_000;
+    expect((await call('POST', `/sessions/${s.id}/proof/code`, u.token, {})).body.error.code).toBe('too_early');
+    shift = 10 * 60_000 + 60_000;
+    const c1 = (await call('POST', `/sessions/${s.id}/proof/code`, u.token, {})).body as ProofState;
+    expect(c1).toMatchObject({ status: 'ready', page: null });
+    expect(Math.abs(c1.expiresAt! - (end + 180_000))).toBeLessThan(1500);
+    expect(((await call('POST', `/sessions/${s.id}/proof/code`, u.token, {})).body as ProofState).code).toBe(c1.code);
+    shift = 10 * 60_000 + 200_000;
+    expect((await call('POST', `/sessions/${s.id}/proof`, u.token, { image: JPEG })).body.error.code).toBe('proof_expired');
+    expect((await call('POST', `/sessions/${s.id}/proof/code`, u.token, {})).body.error.code).toBe('proof_window_closed');
+    expect((await finish(u, s, false)).verified).toBe(false);
+  });
+
+  it('chặn ảnh bắt đầu quá 5 phút; thiếu ảnh bắt đầu thì mã khớp cũng chưa xác minh', async () => {
     const u = await member('Bình');
     const s = await start(u, 'plant');
     shift = 6 * 60_000;
     expect((await photo(u, s.id, 'start')).body.error.code).toBe('photo_too_late');
-    shift = 9 * 60_000;
-    expect((await photo(u, s.id, 'mid')).body.error.code).toBe('photo_too_late');
     shift = 10 * 60_000;
     expect((await finish(u, s)).verified).toBe(false);
+  });
+
+  it('chưa bật AI: vẫn có mã, ảnh có mã được lưu để trưởng nhóm đối chiếu, phiên chờ duyệt', async () => {
+    const lead = await member('Cô Hà');
+    const u = await member('Giang', lead.gid);
+    const s = await start(u, 'move', 5);
+    await photo(u, s.id, 'start');
+    shift = 5 * 60_000;
+    const code = (await call('POST', `/sessions/${s.id}/proof/code`, u.token, {}, {}, noAi)).body as ProofState;
+    expect(code.status).toBe('ready');
+    expect(code.code).toMatch(/^[A-Z]+-\d{2}$/);
+    const sent = (await call('POST', `/sessions/${s.id}/proof`, u.token, { image: JPEG }, {}, noAi)).body as ProofState;
+    expect(sent.status).toBe('sent');
+    const [row] = await database.db.select().from(focusSessions).where(eq(focusSessions.id, s.id));
+    const r = (await call('POST', `/sessions/${s.id}/complete`, u.token, { awaySec: 0, dist: 0, self: 4, confirmed: true, note: '', verify: row.questions.verify.map((q) => q.a) }, {}, noAi)).body as SessionResult;
+    expect(r.verified).toBe(false);
+    const list = (await call('GET', `/groups/${lead.gid}/field`, lead.token)).body as FieldReview;
+    expect(list.items[0]).toMatchObject({ proofCode: code.code, proofStatus: 'sent', photos: [{ kind: 'start' }, { kind: 'end' }] });
   });
 
   it('đọc sách không dùng ảnh hiện trường; người khác không gửi được ảnh vào phiên của mình', async () => {
