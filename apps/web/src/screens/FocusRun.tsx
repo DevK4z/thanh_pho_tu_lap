@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTS, GRACE_SECONDS, REASONS, STUDY_CHECK_SECONDS, USER_REASON_KEYS, VERIFY_FOCUS, type ActiveSession, type Me, type QuitReason, type QuitResult, type TaskStats } from '@tptl/shared';
+import { ACTS, GRACE_SECONDS, REASONS, STUDY_CHECK_SECONDS, USER_REASON_KEYS, type ActiveSession, type Me, type QuitReason, type QuitResult, type TaskStats } from '@tptl/shared';
 import { Banner, Button, Card, Chip, Eyebrow, Modal, Option, Stat3, useToast } from '../components/ui';
 import { CAUSE_LABEL, enterFullscreen, exitFullscreen, useAntiCheat, type Cause, type Warning } from '../focus/useAntiCheat';
 import { useFocusRun, type RunMeasures } from '../focus/useFocusRun';
@@ -157,7 +157,7 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
         <div className="flex w-full max-w-xl flex-col gap-3">
           <p className="text-muted">
             <b>Bạn được mở tài liệu, Word, PDF hay trang tra cứu.</b> Thỉnh thoảng sẽ có câu kiểm tra hiện diện: máy kêu, tab nhấp nháy và hiện thông báo;
-            quay lại trả lời trong {STUDY_CHECK_SECONDS} giây. Không phản hồi bị trừ điểm tập trung; dưới {VERIFY_FOCUS} điểm thì phiên chưa xác minh.
+            quay lại trả lời trong {STUDY_CHECK_SECONDS} giây. Cuối phiên nộp kết quả (ảnh, ảnh màn hình hoặc đoạn đã làm) để đối chiếu với mục tiêu: <b>{s.goal}</b>.
           </p>
           <Stat3 items={[[run.qc + '/' + run.qa, 'câu kiểm tra đúng'], [hm(s.startedAt + s.plannedSec * 1000), 'hết giờ lúc'], [Math.max(0, s.checks.length - run.qa), 'câu còn lại']]} />
         </div>

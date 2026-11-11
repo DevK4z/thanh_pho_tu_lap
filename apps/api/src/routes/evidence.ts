@@ -19,6 +19,8 @@ import { savePhoto } from '../photos';
 import { addDay, plausibleDay } from './sessions';
 
 type SessionRow = typeof focusSessions.$inferSelect;
+/** Điều học sinh đã khai: ghi chú cuối phiên và kết quả đã nộp (phiên trên máy). */
+const claimOf = (s: SessionRow) => [s.note, s.resultText].filter(Boolean).join(' / ').slice(0, 1500);
 
 const CODE_WORDS = ['MAY', 'SONG', 'LUA', 'GIO', 'NUI', 'HOA', 'CAY', 'SAO', 'MUA', 'DAT', 'BIEN', 'RUNG', 'SUOI', 'DEN', 'TRAU', 'CHIM'];
 /** Mã tạo ngay tại máy chủ, nên không dùng lại được ảnh cũ. */
@@ -130,7 +132,7 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
     if (s.recallQ) return { question: s.recallQ };
     let question = '';
     if (ai) {
-      try { question = (await ai.recallQuestion({ act: s.act, day: s.day, goal: s.goal, note: s.note })).slice(0, 300); }
+      try { question = (await ai.recallQuestion({ act: s.act, day: s.day, goal: s.goal, note: claimOf(s) })).slice(0, 300); }
       catch (e) { req.log.warn({ err: e }, 'ai_recall_question_failed'); }
     }
     const manual = !question;
@@ -157,7 +159,7 @@ export function evidenceRoutes(app: FastifyInstance, { db, requireUser, isAdmin,
       res = { score: null, verdict: 'cho_duyet', reason: 'Người tổ chức sẽ xem lại câu trả lời.' };
       if (ai && !s.recallManual) {
         try {
-          const v = await ai.judgeRecall({ act: s.act, day: s.day, goal: s.goal, note: s.note, question: s.recallQ, answer: body.answer });
+          const v = await ai.judgeRecall({ act: s.act, day: s.day, goal: s.goal, note: claimOf(s), question: s.recallQ, answer: body.answer });
           res = { score: v.score, verdict: v.verdict, reason: v.reason.slice(0, 200) };
         } catch (e) { req.log.warn({ err: e }, 'ai_recall_judge_failed'); }
       }

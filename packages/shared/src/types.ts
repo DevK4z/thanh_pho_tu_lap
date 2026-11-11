@@ -91,6 +91,7 @@ export interface ActiveSession {
   checksCorrect: number;
   verify: IssuedQuestion[];
   proof: ProofState;
+  result: ResultState;
 }
 
 /** none: chưa lấy mã · ready: đã có mã, chờ ảnh · ok: ảnh khớp · fail: ảnh chưa khớp · na: máy chủ chưa bật kiểm tra ảnh
@@ -168,8 +169,11 @@ export interface SessionLog {
   recallVerdict: string;
   recallReason: string;
   spotResult: SpotResult | null;
-  /** Trưởng nhóm duyệt ảnh hiện trường. */
+  /** Trưởng nhóm duyệt ảnh hiện trường hoặc kết quả phiên trên máy. */
   review: SpotResult | null;
+  resultStatus: ResultStatus;
+  resultScore: number | null;
+  resultReason: string;
 }
 
 export interface SessionResult {
@@ -308,3 +312,14 @@ export interface FieldReviewItem {
   photos: FieldPhoto[];
 }
 export interface FieldReview { items: FieldReviewItem[] }
+
+/** Kết quả phiên trên máy. none: chưa nộp · ok: tương xứng với mục tiêu · flag: đáng ngờ · sent: đã nộp, chờ trưởng nhóm xem. */
+export type ResultStatus = 'none' | 'ok' | 'flag' | 'sent';
+export interface ResultState { status: ResultStatus; score: number | null; reason: string; tries: number; text: string; hasImage: boolean }
+export interface ResultReviewItem {
+  sid: string; playerId: string; name: string; participantCode: string | null; self: boolean;
+  act: ActKey; actName: string; day: string; minutes: number; goal: string;
+  resultText: string; resultStatus: ResultStatus; resultScore: number | null; resultReason: string; hasImage: boolean;
+  verified: boolean; review: SpotResult | null;
+}
+export interface ResultReview { items: ResultReviewItem[] }

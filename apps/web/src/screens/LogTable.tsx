@@ -6,7 +6,10 @@ import { dmy, hm } from '../lib/format';
 
 /** Tóm tắt các lớp bằng chứng của một phiên đã hoàn thành. */
 function evidence(r: SessionLog): string {
-  const parts = [r.verified ? (r.proofStatus === 'ok' ? 'Ảnh khớp' : 'Theo dõi đạt') : r.proofStatus === 'fail' ? 'Ảnh chưa khớp' : 'Chưa xác minh'];
+  const result = { ok: 'Kết quả đạt', flag: 'Kết quả đáng ngờ', sent: 'Kết quả chờ xem', none: 'Không nộp kết quả' }[r.resultStatus];
+  const parts = [r.mode === 'screen'
+    ? (r.review ? (r.review === 'ok' ? 'Duyệt: đạt' : 'Duyệt: không đạt') : result)
+    : r.verified ? (r.review === 'ok' ? 'Duyệt: đạt' : 'Ảnh khớp') : r.proofStatus === 'fail' ? 'Ảnh chưa khớp' : 'Chưa xác minh'];
   if (r.recallScore != null) parts.push(`Nhớ lại ${r.recallScore}${r.recallScore >= RECALL_PASS ? '' : ' (chưa khớp)'}`);
   else if (r.recallVerdict === 'cho_duyet') parts.push('Nhớ lại chờ xem');
   if (r.spotResult) parts.push(r.spotResult === 'ok' ? 'Trực tiếp khớp' : 'Trực tiếp không khớp');

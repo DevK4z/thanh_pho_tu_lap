@@ -14,6 +14,7 @@ export const qk = {
   ranking: (range: string) => ['ranking', range] as const,
   spot: (gid: string) => ['spot', gid] as const,
   field: (gid: string) => ['field', gid] as const,
+  results: (gid: string) => ['results', gid] as const,
 };
 
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api<PublicConfig>('GET', '/config'), staleTime: Infinity, retry: 1 });

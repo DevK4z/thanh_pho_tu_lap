@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ACTS, ACT_KEYS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_MINUTES, STUDY_CHECK_SECONDS, TIERS,
+  ACTS, ACT_KEYS, DURS, GRACE_SECONDS, LIMITS, MAX_MINUTES, MIN_GOAL_CHARS, MIN_MINUTES, STUDY_CHECK_SECONDS, TIERS,
   dkey, tierFor, type ActKey, type ActiveSession, type Player, type RecallDue,
 } from '@tptl/shared';
 import { Icon } from '../components/Icons';
@@ -55,7 +55,10 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
   const tier = tierFor(min);
   const validDur = Number.isInteger(min) && min >= MIN_MINUTES && min <= MAX_MINUTES;
   // Chỉ phiên trên máy cần toàn màn hình; hoạt động ngoài màn hình thì người dùng cất máy đi.
-  const ok = checks.every(Boolean) && validDur && (!screenMode || canFullscreen);
+  // Phiên trên máy chấm kết quả so với mục tiêu, nên phải ghi mục tiêu.
+  const needGoal = a.mode === 'screen';
+  const goalOk = !needGoal || goal.trim().length >= MIN_GOAL_CHARS;
+  const ok = checks.every(Boolean) && validDur && goalOk && (!screenMode || canFullscreen);
 
   async function begin() {
     if (!validDur) { toast(`Thời gian cam kết cần từ ${MIN_MINUTES} đến ${MAX_MINUTES} phút.`); return; }
@@ -149,9 +152,14 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
       </Card>
       <Card>
         <h3>3. Mục tiêu của phiên</h3>
-        <Field label={a.gl + ' (không bắt buộc)'}>
+        <Field label={a.gl + (needGoal ? ' (bắt buộc)' : ' (không bắt buộc)')}>
           <input className={inputCls} value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={LIMITS.goal} placeholder={a.ph} />
         </Field>
+        {needGoal && (
+          <p className="text-[13px] text-muted">
+            Ghi cụ thể việc sẽ làm xong (ví dụ: giải 15 câu đạo hàm trang 42). Cuối phiên bạn nộp kết quả, và kết quả được đối chiếu với mục tiêu này{goal.trim() && !goalOk ? '. Mục tiêu còn quá ngắn.' : '.'}
+          </p>
+        )}
       </Card>
       <Card>
         <h3>4. Chuẩn bị</h3>

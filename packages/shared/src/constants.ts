@@ -23,9 +23,9 @@ export type Watch = 'fullscreen' | 'visible' | 'checks' | 'none';
 
 export const ACTS: Record<ActKey, Activity> = {
   read: { n: 'Đọc sách giấy', mode: 'offline', watch: 'visible', field: false, d: 'Giữ ứng dụng mở, úp điện thoại xuống và đọc sách giấy. Hết giờ trả lời câu hỏi xác nhận.', gl: 'Sách và phần sẽ đọc', ph: 'Tên sách, chương hoặc số trang', needNote: true },
-  study: { n: 'Học trên máy', mode: 'screen', watch: 'checks', field: false, d: 'Học bằng tài liệu trên máy: được mở Word, PDF, trang tra cứu. Thỉnh thoảng có câu kiểm tra hiện diện; máy sẽ kêu để bạn quay lại trả lời trong 90 giây. Cuối phiên ghi lại việc đã làm được.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong đề cương môn Sử', needNote: true },
-  deep: { n: 'Tập trung tuyệt đối', mode: 'screen', watch: 'fullscreen', field: false, d: 'Chỉ dùng khi học ngay trong trang web này: chạy toàn màn hình, đổi tab hoặc mở ứng dụng khác quá 3 giây là thất bại.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
-  write: { n: 'Viết và suy ngẫm', mode: 'screen', watch: 'fullscreen', field: false, d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
+  study: { n: 'Học trên máy', mode: 'screen', watch: 'checks', field: false, d: 'Học bằng tài liệu trên máy: được mở Word, PDF, trang tra cứu. Thỉnh thoảng có câu kiểm tra hiện diện; máy sẽ kêu để bạn quay lại trả lời trong 90 giây. Cuối phiên nộp kết quả (ảnh chụp, ảnh màn hình hoặc đoạn đã làm) để đối chiếu với mục tiêu.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong đề cương môn Sử', needNote: true },
+  deep: { n: 'Tập trung tuyệt đối', mode: 'screen', watch: 'fullscreen', field: false, d: 'Chỉ dùng khi học ngay trong trang web này: chạy toàn màn hình, đổi tab hoặc mở ứng dụng khác quá 3 giây là thất bại. Cuối phiên nộp kết quả để đối chiếu với mục tiêu.', gl: 'Việc cần hoàn thành', ph: 'Ví dụ: làm xong 20 câu bài tập', needNote: false },
+  write: { n: 'Viết và suy ngẫm', mode: 'screen', watch: 'fullscreen', field: false, d: 'Viết nhật ký hoặc bài luận trên máy. Rời trang sẽ được ghi nhận. Cuối phiên dán đoạn đã viết để đối chiếu với mục tiêu.', gl: 'Chủ đề sẽ viết', ph: 'Một dòng về chủ đề', needNote: true },
   move: { n: 'Vận động', mode: 'offline', watch: 'none', field: true, d: 'Chạy bộ, tập thể dục, đạp xe. Chụp ảnh lúc bắt đầu, rồi cất điện thoại. Hết giờ, mã xác thực tự hiện ra: chụp ảnh có mã trong 3 phút.', gl: 'Bài tập', ph: 'Ví dụ: chạy bộ quanh sân', needNote: false },
   plant: { n: 'Chăm cây', mode: 'offline', watch: 'visible', field: true, d: 'Trồng, tưới, tỉa cây. Giữ ứng dụng mở, đặt điện thoại gần đó; chụp ảnh lúc bắt đầu. Hết giờ, mã xác thực tự hiện ra: chụp ảnh có mã trong 3 phút.', gl: 'Việc với cây', ph: 'Ví dụ: thay chậu cho cây chanh', needNote: false },
 };
@@ -110,11 +110,16 @@ export const RECALL_WINDOW_DAYS = 4;
 export const MIN_RECALL_WORDS = 4;
 /* Ảnh hiện trường (vận động, chăm cây). */
 /** 'mid' chỉ còn ở dữ liệu cũ (trước khi bỏ ảnh giữa phiên). */
-export type PhotoKind = 'start' | 'mid' | 'end';
+export type PhotoKind = 'start' | 'mid' | 'end' | 'result';
 /** Ảnh bắt đầu phải chụp trong khoảng này kể từ lúc bấm bắt đầu. */
 export const FIELD_START_SECONDS = 300;
 /** Vận động, chăm cây: mã xác thực tự hiện lúc hết giờ, phải chụp ảnh có mã trong khoảng này sau khi kết thúc (tính theo giờ máy chủ). */
 export const FIELD_PROOF_SECONDS = 180;
+/* Chấm kết quả (phiên trên máy). */
+/** Số lần nộp kết quả tối đa cho một phiên. */
+export const RESULT_TRIES = 3;
+/** Phiên trên máy phải ghi mục tiêu đủ dài để đối chiếu với kết quả. */
+export const MIN_GOAL_CHARS = 5;
 /** Ảnh hiện trường tự xóa sau số ngày này (thực nghiệm 28 ngày cộng thời gian phân tích). */
 export const PHOTO_RETENTION_DAYS = 45;
 /** Vật cần chụp cạnh mã thử thách. */
@@ -132,7 +137,7 @@ export const GN = 7;
 export const SLOTS: [number, number][] = [];
 for (let r = 0; r < GN; r++) for (let c = 0; c < GN; c++) if (r !== 3 && c !== 3 && !(r === 1 && c === 1)) SLOTS.push([r, c]);
 
-export const LIMITS = { userName: 24, groupName: 40, goal: 120, note: 400, question: 200, option: 120, recallAnswer: 500, participantCode: 20 }
+export const LIMITS = { userName: 24, groupName: 40, goal: 120, note: 400, question: 200, option: 120, recallAnswer: 500, participantCode: 20, resultText: 5000 }
 /** Mã cá nhân của người tham gia thực nghiệm (ví dụ T0-015): chữ, số, gạch ngang, gạch dưới, dấu chấm. */
 export const PARTICIPANT_RE = /^[A-Z0-9][A-Z0-9_.-]{0,19}$/;
 /** Mã mời vào nhóm: 6 ký tự, bỏ các ký tự dễ nhầm (0/O, 1/I/L). */

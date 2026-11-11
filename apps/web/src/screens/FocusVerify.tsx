@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ACTS, LIMITS, MIN_NOTE_WORDS, wordCount, type ActiveSession, type Me, type ProofState, type QuitResult, type SessionResult } from '@tptl/shared';
+import { ACTS, LIMITS, MIN_NOTE_WORDS, wordCount, type ActiveSession, type Me, type ProofState, type QuitResult, type ResultState, type SessionResult } from '@tptl/shared';
 import { Button, Card, Check, Chip, Eyebrow, Field, inputCls, Option, useToast } from '../components/ui';
 import { sendDataToAdmin } from '../lib/adminReport';
 import { api, errorMessage } from '../lib/api';
 import type { RunMeasures } from './FocusRun';
 import { FieldPhotoCard } from './FieldPhotoCard';
 import { ProofCard } from './ProofCard';
+import { ResultCard } from './ResultCard';
 
 export function FocusVerify({ me, s, m, onDone, onHonest }: { me: Me; s: ActiveSession; m: RunMeasures; onDone: (r: SessionResult) => void; onHonest: () => void }) {
   const toast = useToast();
@@ -16,8 +17,10 @@ export function FocusVerify({ me, s, m, onDone, onHonest }: { me: Me; s: ActiveS
   const [conf, setConf] = useState(false);
   const [busy, setBusy] = useState(false);
   const [proof, setProof] = useState<ProofState>(s.proof);
+  const [result, setResult] = useState<ResultState>(s.result);
+  const screen = s.mode === 'screen';
   const words = wordCount(note);
-  const ready = ans.every((x) => x != null) && self > 0 && (s.mode !== 'offline' || conf) && (!a.needNote || words >= MIN_NOTE_WORDS);
+  const ready = ans.every((x) => x != null) && self > 0 && (s.mode !== 'offline' || conf) && (!a.needNote || words >= MIN_NOTE_WORDS) && (!screen || result.status !== 'none');
 
   async function finish() {
     if (!ready) return;
@@ -47,9 +50,10 @@ export function FocusVerify({ me, s, m, onDone, onHonest }: { me: Me; s: ActiveS
       <div>
         <Eyebrow>Hết giờ</Eyebrow>
         <h2>Xác nhận để nhận công trình</h2>
-        <p className="mt-1.5 text-muted">Bạn đã hoàn thành {Math.round(s.plannedSec / 60)} phút cam kết. Trả lời các câu hỏi sau để xác nhận phiên.</p>
+        <p className="mt-1.5 text-muted">Bạn đã hoàn thành {Math.round(s.plannedSec / 60)} phút cam kết. {screen ? 'Nộp kết quả và trả lời các câu hỏi sau để xác nhận phiên.' : 'Trả lời các câu hỏi sau để xác nhận phiên.'}</p>
       </div>
-      <ProofCard s={{ ...s, proof }} onChange={setProof} />
+      {/* Phiên trên máy chấm kết quả đã nộp; đọc sách, vận động, chăm cây dùng ảnh có mã. */}
+      {screen ? <ResultCard s={{ ...s, result }} onChange={setResult} /> : <ProofCard s={{ ...s, proof }} onChange={setProof} />}
       {a.field && <FieldPhotoCard s={s} canCapture={false} refresh={proof.status + proof.tries} />}
       {s.verify.map((q, qi) => (
         <Card key={qi}>

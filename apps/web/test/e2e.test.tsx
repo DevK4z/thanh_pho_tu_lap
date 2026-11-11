@@ -33,7 +33,15 @@ function installFullscreen() {
 
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: resolve(__dirname, '../../api/drizzle') });
-  server = await buildApp({ db: database.db, env: loadEnv({ ADMIN_EMAILS: 'quantri@example.com', GROUP_CREATION: 'open' }), rateLimit: false });
+  server = await buildApp({ db: database.db, env: loadEnv({ ADMIN_EMAILS: 'quantri@example.com', GROUP_CREATION: 'open' }), rateLimit: false,
+    // Gemini giả: kết quả phiên trên máy luôn đạt (luật chấm kết quả có test riêng ở API).
+    ai: {
+      checkPhoto: async () => ({ ok: false, reason: '' }),
+      recallQuestion: async () => '',
+      judgeRecall: async () => ({ score: 0, verdict: '', reason: '' }),
+      checkResult: async () => ({ ok: true, score: 88, reason: 'Kết quả khớp mục tiêu.' }),
+    },
+  });
   await server.listen({ port: 0, host: '127.0.0.1' });
   vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:' + (server.server.address() as AddressInfo).port);
   vi.spyOn(Date, 'now').mockImplementation(() => realNow() + shift);
@@ -99,6 +107,9 @@ describe('giao diện + API', () => {
     const begin = btn(/Vào toàn màn hình và bắt đầu 5 phút/);
     expect(begin).toHaveProperty('disabled', true);
     screen.getAllByRole('checkbox').forEach((c) => fireEvent.click(c));
+    // Phiên trên máy phải ghi mục tiêu để đối chiếu với kết quả.
+    expect(begin).toHaveProperty('disabled', true);
+    type(/Việc cần hoàn thành/, 'giải 10 câu đạo hàm trang 42');
     fireEvent.click(begin);
     await find('còn lại');
     expect(fsEl).toBe(document.documentElement);
@@ -123,6 +134,11 @@ describe('giao diện + API', () => {
     const question = screen.getAllByRole('heading', { level: 3 })[1].closest('div')!;
     fireEvent.click(within(question).getAllByRole('button')[0]);
     fireEvent.click(btn('5'));
+    // Chưa nộp kết quả thì chưa hoàn thành được.
+    expect(finish).toHaveProperty('disabled', true);
+    type('Dán đoạn đã viết hoặc tóm tắt việc đã làm', 'đã giải xong 10 câu đạo hàm, câu 7 dùng quy tắc chuỗi');
+    fireEvent.click(btn('Nộp kết quả'));
+    await find(/Kết quả khớp mục tiêu/);
     expect(finish).toHaveProperty('disabled', false);
     fireEvent.click(finish);
 
@@ -149,6 +165,7 @@ describe('giao diện + API', () => {
     await find('Hoàn thành phiên này để nâng chuỗi lên 2 và nhận một công trình. Một phiên thất bại sẽ đưa chuỗi về 0.');
     fireEvent.click(btn('5 phút'));
     screen.getAllByRole('checkbox').forEach((c) => fireEvent.click(c));
+    type(/Việc cần hoàn thành/, 'ôn lại công thức lượng giác');
     fireEvent.click(btn(/Vào toàn màn hình và bắt đầu 5 phút/));
     await find('còn lại');
     fireEvent.blur(window);

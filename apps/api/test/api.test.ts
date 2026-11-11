@@ -20,6 +20,13 @@ beforeAll(async () => {
     db: database.db,
     env: loadEnv({ ADMIN_EMAILS: ' Boss-Account@Example.com , khac@example.com', GROUP_CREATION: 'open' }),
     rateLimit: false,
+    // Gemini giả: kết quả phiên trên máy luôn đạt (luật chấm kết quả có test riêng ở results.test.ts).
+    ai: {
+      checkPhoto: async () => ({ ok: false, reason: '' }),
+      recallQuestion: async () => '',
+      judgeRecall: async () => ({ score: 0, verdict: '', reason: '' }),
+      checkResult: async () => ({ ok: true, score: 90, reason: 'Tương xứng.' }),
+    },
     verifiers: {
       google: async (cred) => {
         if (cred === 'bad-credential') throw new HttpError(401, 'invalid_credential', 'sai');
@@ -143,7 +150,7 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect(s.checks).toHaveLength(2);
     expect(s.verify).toHaveLength(1);
     expect(JSON.stringify(s)).not.toMatch(/"a":/);
-    expect((await call('POST', `/groups/${gid}/sessions`, A.token, { act: 'deep', minutes: 25, day: today() })).status).toBe(409);
+    expect((await call('POST', `/groups/${gid}/sessions`, A.token, { act: 'deep', minutes: 25, goal: 'làm bài', day: today() })).status).toBe(409);
     expect((await call('POST', `/groups/${gid}/sessions`, A.token, { act: 'deep', minutes: 3, day: today() })).status).toBe(400);
 
     const q = await answersOf(s.id);
@@ -157,6 +164,8 @@ describe('luồng nhóm và phiên tập trung', () => {
     expect(early.body.error.code).toBe('too_early');
 
     shift = 1500 * 1000;
+    expect((await call('POST', `/sessions/${s.id}/complete`, A.token, done)).body.error.code).toBe('result_required');
+    expect((await call('POST', `/sessions/${s.id}/result`, A.token, { text: 'đã làm xong hai mươi câu bài tập đạo hàm' })).body).toMatchObject({ status: 'ok', score: 90 });
     const r = await call('POST', `/sessions/${s.id}/complete`, A.token, done);
     expect(r.status).toBe(200);
     // 10% rời trang, 2 lần rời, 1 câu bỏ lỡ; đúng 2/3 câu
@@ -198,7 +207,7 @@ describe('luồng nhóm và phiên tập trung', () => {
   });
 
   it('phiên viết: ghi chú đủ dài, bỏ cuộc được ghi lý do', async () => {
-    const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'write', minutes: 10, day: today() })).body as ActiveSession;
+    const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'write', minutes: 10, goal: 'viết nhật ký cuối ngày', day: today() })).body as ActiveSession;
     expect(s).toMatchObject({ mode: 'screen' });
     expect(s.verify).toHaveLength(1);
     shift = 600 * 1000;
@@ -232,7 +241,7 @@ describe('luồng nhóm và phiên tập trung', () => {
     // Hoạt động "deep" có 3 câu mặc định + 2 câu chung + 1 câu riêng; phát đủ nhiều lần sẽ gặp câu riêng.
     let seen = false;
     for (let i = 0; i < 12 && !seen; i++) {
-      const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'deep', minutes: 5, day: today() })).body as ActiveSession;
+      const s = (await call('POST', `/groups/${gid}/sessions`, B.token, { act: 'deep', minutes: 5, goal: 'ôn tập', day: today() })).body as ActiveSession;
       seen = s.checks.concat(s.verify).some((v) => v.id === r.body.id);
       await call('POST', `/sessions/${s.id}/quit`, B.token, { reason: 'other', awaySec: 0, dist: 0 });
     }
@@ -253,9 +262,10 @@ describe('luồng nhóm và phiên tập trung', () => {
     await call('POST', `/groups/${gid}/players`, C.token, { name: 'Chi', style: 'san', dailyGoal: 30, participantCode: 'T0-003' });
     /** Chạy một phiên 5 phút trên máy: hoàn thành hoặc bị hệ thống đánh thất bại vì rời màn hình. */
     async function run(ok: boolean) {
-      const s = (await call('POST', `/groups/${gid}/sessions`, C.token, { act: 'deep', minutes: 5, day: today() })).body as ActiveSession;
+      const s = (await call('POST', `/groups/${gid}/sessions`, C.token, { act: 'deep', minutes: 5, goal: 'làm đề số 3', day: today() })).body as ActiveSession;
       if (!ok) return (await call('POST', `/sessions/${s.id}/quit`, C.token, { reason: 'violation', awaySec: 4, dist: 1 })).body;
       shift += 301_000;
+      await call('POST', `/sessions/${s.id}/result`, C.token, { text: 'đã làm xong đề số ba phần trắc nghiệm' });
       return (await call('POST', `/sessions/${s.id}/complete`, C.token, { awaySec: 0, dist: 0, self: 5, verify: [0] })).body;
     }
     const got: number[] = [];

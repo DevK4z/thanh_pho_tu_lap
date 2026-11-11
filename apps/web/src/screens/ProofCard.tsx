@@ -1,6 +1,6 @@
 /* Lớp 1: lấy mã thử thách, chụp ảnh và gửi kiểm tra. Ảnh được nén ở trình duyệt, gửi Gemini kiểm tra, ứng dụng không lưu lại. */
 import { useEffect, useRef, useState } from 'react';
-import { ACTS, FIELD_PROOF_SECONDS, PROOF_THING, PROOF_TRIES, VERIFY_FOCUS, type ActiveSession, type ProofState } from '@tptl/shared';
+import { ACTS, FIELD_PROOF_SECONDS, PROOF_THING, PROOF_TRIES, type ActiveSession, type ProofState } from '@tptl/shared';
 import { Banner, Button, Card, Field, inputCls, Pill, useToast } from '../components/ui';
 import { api, errorMessage } from '../lib/api';
 import { mmss } from '../lib/format';
@@ -70,7 +70,7 @@ export function ProofCard({ s, onChange }: { s: ActiveSession; onChange: (p: Pro
     ? `Ảnh có mã xác thực chụp trong ${FIELD_PROOF_SECONDS / 60} phút sau khi kết thúc, cùng ảnh bắt đầu, giúp phiên được xác minh ngay; thiếu thì phiên chờ trưởng nhóm duyệt.`
     : need
     ? 'Không có ảnh khớp, phiên vẫn hoàn thành nhưng ở trạng thái “chưa xác minh”: vẫn nhận công trình, số phút không tính vào giai đoạn nhà và không có điểm nhóm.'
-    : `Phiên trên máy được xác minh qua theo dõi rời trang khi điểm tập trung từ ${VERIFY_FOCUS}. Ảnh giúp xác minh khi điểm thấp hơn.`;
+    : 'Ảnh có mã giúp xác minh phiên.';
 
   return (
     <Card>

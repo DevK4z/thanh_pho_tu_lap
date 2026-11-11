@@ -25,7 +25,7 @@ let shift = 0;
 let app: FastifyInstance;
 let noAi: FastifyInstance;
 let database: Database;
-const ai = { checkPhoto: vi.fn(), recallQuestion: vi.fn(), judgeRecall: vi.fn() } satisfies EvidenceAI;
+const ai = { checkPhoto: vi.fn(), recallQuestion: vi.fn(), judgeRecall: vi.fn(), checkResult: vi.fn(async () => ({ ok: true, score: 80, reason: 'Tương xứng.' })) } satisfies EvidenceAI;
 const day = (ms = 0) => dkey(Date.now() + ms);
 const DAY = 86400000;
 
@@ -150,18 +150,6 @@ describe('lớp 1: mã thử thách và ảnh', () => {
     const s = await reading(u);
     expect((await call('POST', `/sessions/${s.id}/proof/code`, u.token, {}, noAi)).body).toMatchObject({ status: 'na', code: null });
     expect(await finish(u, s)).toMatchObject({ verified: false });
-  });
-
-  it('phiên trên máy đạt điểm tập trung từ 70 được xác minh không cần ảnh; thấp hơn thì không', async () => {
-    const u = await setup('Hà');
-    for (const [awaySec, verified] of [[0, true], [200, false]] as const) {
-      const s = (await call('POST', `/groups/${u.gid}/sessions`, u.token, { act: 'deep', minutes: 5, goal: '', day: day() })).body as ActiveSession;
-      shift += 300_000;
-      const [row] = await database.db.select().from(focusSessions).where(eq(focusSessions.id, s.id));
-      for (const c of row.questions.checks) await call('POST', `/sessions/${s.id}/checks`, u.token, { index: row.questions.checks.indexOf(c), choice: c.a });
-      const r = await call('POST', `/sessions/${s.id}/complete`, u.token, { awaySec, dist: 0, self: 5, verify: row.questions.verify.map((q) => q.a) });
-      expect(r.body).toMatchObject({ verified });
-    }
   });
 
   it('tự khai chưa làm đủ: giữ chuỗi, không có điểm, chỉ khai được sau khi hết giờ', async () => {

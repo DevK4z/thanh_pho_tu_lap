@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { type AnyPgColumn, boolean, index, real, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { ActKey, HouseStyle, Mode, PendingReward, PhotoKind, PlotItem, ProofStatus, Provider, QuitReason, SpotResult } from '@tptl/shared';
+import type { ActKey, HouseStyle, Mode, PendingReward, PhotoKind, PlotItem, ProofStatus, Provider, QuitReason, ResultStatus, SpotResult } from '@tptl/shared';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -133,6 +133,13 @@ export const focusSessions = pgTable('focus_sessions', {
   spotResult: text('spot_result').$type<SpotResult>(),
   /** Trưởng nhóm duyệt ảnh hiện trường (vận động, chăm cây). */
   review: text('review').$type<SpotResult>(),
+  /** Kết quả nộp cuối phiên trên máy: đoạn văn và/hoặc ảnh (ảnh lưu ở session_photos, loại 'result'). */
+  resultText: text('result_text').notNull().default(''),
+  resultImage: boolean('result_image').notNull().default(false),
+  resultStatus: text('result_status').$type<ResultStatus>().notNull().default('none'),
+  resultScore: integer('result_score'),
+  resultReason: text('result_reason').notNull().default(''),
+  resultTries: integer('result_tries').notNull().default(0),
 }, (t) => [
   index('focus_sessions_player_idx').on(t.playerId, t.startedAt),
   // Mỗi người chỉ có tối đa một phiên đang chạy.

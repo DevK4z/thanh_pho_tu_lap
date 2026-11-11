@@ -1,5 +1,5 @@
 /* Ngân hàng câu hỏi. Đáp án chỉ nằm ở máy chủ; trình duyệt nhận câu hỏi đã xáo phương án và không kèm đáp án. */
-import type { ActKey, ActiveSession, IssuedQuestion, ProofState, ProofStatus } from '@tptl/shared';
+import type { ActKey, ActiveSession, IssuedQuestion, ProofState, ProofStatus, ResultState, ResultStatus } from '@tptl/shared';
 import type { SessionQuestions, StoredQuestion } from './db/schema';
 
 export interface BankQuestion { id: string; act: ActKey | 'all'; q: string; o: string[]; a: number }
@@ -54,7 +54,11 @@ export function proofState(s: { proofStatus: ProofStatus; proofCode: string | nu
   return { status: s.proofStatus, code: s.proofCode, page: s.proofPage, expiresAt: s.proofExp ? s.proofExp.getTime() : null, tries: s.proofTries, reason: s.proofReason };
 }
 
-export function publicSession(s: Parameters<typeof proofState>[0] & {
+export function resultState(s: { resultStatus: ResultStatus; resultScore: number | null; resultReason: string; resultTries: number; resultText: string; resultImage: boolean }): ResultState {
+  return { status: s.resultStatus, score: s.resultScore, reason: s.resultReason, tries: s.resultTries, text: s.resultText, hasImage: s.resultImage };
+}
+
+export function publicSession(s: Parameters<typeof proofState>[0] & Parameters<typeof resultState>[0] & {
   id: string; act: ActKey; mode: ActiveSession['mode']; plannedSec: number; startedAt: Date; goal: string; day: string; questions: SessionQuestions;
 }): ActiveSession {
   const answered = s.questions.checks.filter((c) => c.ans !== undefined);
@@ -65,5 +69,6 @@ export function publicSession(s: Parameters<typeof proofState>[0] & {
     checksCorrect: answered.filter((c) => c.ans === c.a).length,
     verify: s.questions.verify.map(strip),
     proof: proofState(s),
+    result: resultState(s),
   };
 }

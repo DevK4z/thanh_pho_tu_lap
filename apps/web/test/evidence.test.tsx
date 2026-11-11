@@ -5,15 +5,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActiveSession, ProofState, RecallDue } from '@tptl/shared';
 import { ToastProvider } from '../src/components/ui';
 import { ProofCard } from '../src/screens/ProofCard';
+import { ResultCard } from '../src/screens/ResultCard';
+import type { ResultState } from '@tptl/shared';
 import { RecallCard } from '../src/screens/RecallCard';
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock('../src/lib/api', async (orig) => ({ ...(await orig<typeof import('../src/lib/api')>()), api }));
 
+const noResult: ResultState = { status: 'none', score: null, reason: '', tries: 0, text: '', hasImage: false };
 const noProof: ProofState = { status: 'none', code: null, page: null, expiresAt: null, tries: 0, reason: '' };
 const session = (over: Partial<ActiveSession> = {}): ActiveSession => ({
   id: 's1', act: 'read', mode: 'offline', plannedSec: 600, startedAt: 0, goal: '', day: '2026-11-06',
-  checks: [], checksAnswered: 0, checksCorrect: 0, verify: [], proof: noProof, ...over,
+  checks: [], checksAnswered: 0, checksCorrect: 0, verify: [], proof: noProof, result: noResult, ...over,
 });
 
 function Proof({ s }: { s: ActiveSession }) {
@@ -119,5 +122,44 @@ describe('RecallCard', () => {
     fireEvent.click(btn('Tôi không nhớ'));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(api).toHaveBeenLastCalledWith('POST', '/sessions/s1/recall/answer', expect.objectContaining({ answer: '', skip: true }));
+  });
+});
+
+describe('ResultCard', () => {
+  function Result({ s }: { s: ActiveSession }) {
+    const [result, setResult] = useState(s.result);
+    return <ToastProvider><ResultCard s={{ ...s, result }} onChange={setResult} /></ToastProvider>;
+  }
+  const screenSession = (over: Partial<ActiveSession> = {}) => session({ act: 'write', mode: 'screen', goal: 'viết bài luận về tình bạn', plannedSec: 2700, ...over });
+
+  it('hiện mục tiêu; chưa có gì thì không nộp được; dán ảnh chụp màn hình bằng Ctrl+V rồi nộp', async () => {
+    api.mockResolvedValueOnce({ ...noResult, status: 'ok', score: 82, reason: 'Khớp mục tiêu.', tries: 1, hasImage: true });
+    vi.stubGlobal('createImageBitmap', async () => ({ width: 800, height: 600, close() {} }));
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage() {} } as never);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,QUJD');
+    render(<Result s={screenSession()} />);
+    expect(screen.getByText('viết bài luận về tình bạn')).toBeTruthy();
+    expect(screen.getByText(/45 phút cam kết/)).toBeTruthy();
+    expect(btn('Nộp kết quả')).toHaveProperty('disabled', true);
+    const file = new File(['x'], 'screenshot.png', { type: 'image/png' });
+    fireEvent.paste(screen.getByText('Nộp kết quả của phiên'), { clipboardData: { items: [{ type: 'image/png', getAsFile: () => file }] } });
+    await screen.findByAltText('Ảnh kết quả sẽ nộp');
+    fireEvent.click(btn('Nộp kết quả'));
+    await screen.findByText(/Khớp mục tiêu\./);
+    expect(api).toHaveBeenCalledWith('POST', '/sessions/s1/result', { text: '', image: 'QUJD' });
+    expect(screen.getByText('Đạt')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Nộp/ })).toBeNull();
+  });
+
+  it('kết quả đáng ngờ: hiện lý do và điểm, cho bổ sung rồi nộp lại; hết lượt thì không nộp nữa', async () => {
+    const flag: ResultState = { ...noResult, status: 'flag', score: 15, reason: 'Chỉ có 2 câu, chưa tương xứng với 45 phút.', tries: 1, text: 'Hai câu.' };
+    const { unmount } = render(<Result s={screenSession({ result: flag })} />);
+    expect(screen.getByText(/Chỉ có 2 câu, chưa tương xứng với 45 phút\. \(15\/100\) Bạn có thể bổ sung rồi nộp lại\./)).toBeTruthy();
+    expect(screen.getByText('Đáng ngờ')).toBeTruthy();
+    expect(btn('Nộp lại')).toHaveProperty('disabled', false);
+    unmount();
+    render(<Result s={screenSession({ result: { ...flag, tries: 3 } })} />);
+    expect(screen.getByText(/Đã hết lượt nộp\./)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Nộp lại' })).toBeNull();
   });
 });

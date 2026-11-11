@@ -17,7 +17,7 @@ let shift = 0;
 let app: FastifyInstance;
 let noAi: FastifyInstance;
 let database: Database;
-const ai = { checkPhoto: vi.fn(async () => ({ ok: true, reason: 'Khớp mã.' })), recallQuestion: vi.fn(), judgeRecall: vi.fn() } satisfies EvidenceAI;
+const ai = { checkPhoto: vi.fn(async () => ({ ok: true, reason: 'Khớp mã.' })), recallQuestion: vi.fn(), judgeRecall: vi.fn(), checkResult: vi.fn(async () => ({ ok: true, score: 80, reason: 'Tương xứng.' })) } satisfies EvidenceAI;
 
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });

@@ -4,7 +4,7 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  ACTS, LIMITS, MAX_MINUTES, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, ACT_KEYS, DAY_RE, VERIFY_FOCUS,
+  ACTS, LIMITS, MAX_MINUTES, MIN_GOAL_CHARS, MIN_MINUTES, MIN_NOTE_WORDS, REASON_KEYS, ACT_KEYS, DAY_RE,
   checkCount, levelOf, scoreSession, tierFor, verifyCount, wordCount,
   type ActKey, type DayStat, type QuitResult, type SessionResult, type TaskStats,
 } from '@tptl/shared';
@@ -90,6 +90,9 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     }), req.body);
     const now = Date.now();
     if (!plausibleDay(body.day, now)) throw new HttpError(400, 'bad_day', 'Ngày trên máy không khớp với giờ thực. Hãy kiểm tra đồng hồ của máy.');
+    if (ACTS[body.act].mode === 'screen' && body.goal.length < MIN_GOAL_CHARS) {
+      throw new HttpError(400, 'goal_required', `Phiên trên máy cần ghi rõ mục tiêu (ít nhất ${MIN_GOAL_CHARS} ký tự) để đối chiếu với kết quả cuối phiên.`);
+    }
     if (!p.participantCode) throw new HttpError(409, 'participant_required', 'Hãy nhập mã cá nhân trước khi bắt đầu phiên, để kết quả được ghép đúng với phiếu khảo sát.');
     if (await findRecall(db, p.id, body.day)) throw new HttpError(409, 'recall_due', 'Hãy trả lời câu hỏi nhớ lại trước khi bắt đầu phiên mới.');
     const mode = ACTS[body.act].mode;
@@ -150,6 +153,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       if (body.verify.length !== q.verify.length) throw new HttpError(400, 'invalid_input', 'Cần trả lời đủ câu hỏi xác nhận.');
       if (s.mode === 'offline' && !body.confirmed) throw new HttpError(400, 'not_confirmed', 'Cần xác nhận đã thực hiện đủ thời gian.');
       if (ACTS[s.act].needNote && wordCount(body.note) < MIN_NOTE_WORDS) throw new HttpError(400, 'note_too_short', `Ghi chú cần ít nhất ${MIN_NOTE_WORDS} từ.`);
+      if (s.mode === 'screen' && s.resultStatus === 'none') throw new HttpError(400, 'result_required', 'Hãy nộp kết quả của phiên (ảnh chụp, ảnh màn hình hoặc đoạn đã làm) trước khi hoàn thành.');
 
       body.verify.forEach((ans, i) => { q.verify[i].ans = ans; });
       const chk = answeredStats(q);
@@ -162,8 +166,8 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       const focus = scoreSession({ mode: s.mode, activeSec, awaySec, distractions: dist, missed: chk.missed, qa, qc, self: body.self });
       const minutes = Math.round(s.plannedSec / 60);
       const tier = tierFor(minutes);
-      // Có ảnh khớp mã, hoặc phiên trên máy đạt điểm tập trung đủ cao. Chưa xác minh vẫn nhận công trình nhưng phút không được tính.
-      let verified = s.proofStatus === 'ok' || (s.mode === 'screen' && focus >= VERIFY_FOCUS);
+      // Phiên trên máy: chấm kết quả đã nộp. Đọc sách: ảnh khớp mã. Chưa xác minh vẫn nhận công trình nhưng phút không được tính.
+      let verified = s.mode === 'screen' ? s.resultStatus === 'ok' : s.proofStatus === 'ok';
       // Vận động, chăm cây: cần ảnh bắt đầu và ảnh kết thúc khớp mã xác thực; thiếu thì chờ trưởng nhóm duyệt.
       if (ACTS[s.act].field) {
         const kinds = (await tx.select({ k: sessionPhotos.kind }).from(sessionPhotos).where(eq(sessionPhotos.sessionId, sid))).map((r) => r.k);
@@ -171,7 +175,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
       }
       const shiny = focus >= 85 && verified;
       const gained = verified ? minutes : 0;
-      const hasClaim = !!(s.goal || body.note);
+      const hasClaim = !!(s.goal || body.note || s.resultText);
 
       await tx.update(focusSessions).set({
         status: 'done', endedAt: new Date(now), activeSec, awaySec, dist, missed: chk.missed, qa, qc, focus, self: body.self, note: body.note, questions: q, verified, proofCode: ACTS[s.act].field ? s.proofCode : null, recallDue: hasClaim,

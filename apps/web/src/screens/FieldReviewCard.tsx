@@ -8,7 +8,7 @@ import { dmy, hm } from '../lib/format';
 import { distanceM } from '../lib/photo';
 import { qk } from '../lib/queries';
 
-const LABEL: Record<PhotoKind, string> = { start: 'Bắt đầu', mid: 'Giữa phiên', end: 'Kết thúc (có mã)' };
+const LABEL: Record<PhotoKind, string> = { start: 'Bắt đầu', mid: 'Giữa phiên', end: 'Kết thúc (có mã)', result: 'Kết quả' };
 
 function Photos({ it }: { it: FieldReviewItem }) {
   const [urls, setUrls] = useState<Partial<Record<PhotoKind, string>>>({});

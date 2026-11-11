@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { REASONS, RECALL_PASS, VERIFY_FOCUS, delta, keysBack, metrics, sumDays, trustOf, type Metrics, type Player, type QuitReason } from '@tptl/shared';
+import { REASONS, RECALL_PASS, delta, keysBack, metrics, sumDays, trustOf, type Metrics, type Player, type QuitReason } from '@tptl/shared';
 import { BarChart, LineChart } from '../components/Charts';
 import { BigNumber, Button, Card, Chip, Eyebrow, Grid, KV, Meter, Pill, Trend } from '../components/ui';
 import { dmy, fmtMin, num, pct } from '../lib/format';
@@ -72,7 +72,7 @@ export function Mine({ gid, player: me, onTab }: { gid: string; player: Player; 
           ['Phút chưa xác minh (tổng)', fmtMin(me.unverifiedMin)],
         ]} />
         <p className="text-[13px] text-muted">
-          Độ tin cậy = 40% phiên có xác minh (ảnh khớp mã thử thách, hoặc phiên trên máy đạt điểm tập trung từ {VERIFY_FOCUS}) + 30% câu nhớ lại đạt từ {RECALL_PASS} điểm + 30% kiểm tra trực tiếp khớp,
+          Độ tin cậy = 40% phiên có xác minh (ảnh khớp mã thử thách, hoặc kết quả phiên trên máy đạt khi đối chiếu với mục tiêu) + 30% câu nhớ lại đạt từ {RECALL_PASS} điểm + 30% kiểm tra trực tiếp khớp,
           chỉ tính các phần có dữ liệu; trừ 15 điểm mỗi lần không khớp. Phút chưa xác minh không tính vào giai đoạn nhà và điểm nhóm. Tự khai chưa làm đủ không trừ độ tin cậy.
         </p>
       </Card>

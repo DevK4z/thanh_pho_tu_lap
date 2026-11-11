@@ -9,6 +9,7 @@ import { GrantTool } from './GrantTool';
 import { GroupAccessCard } from './GroupAccessCard';
 import { LogTable } from './LogTable';
 import { FieldReviewCard } from './FieldReviewCard';
+import { ResultReviewCard } from './ResultReviewCard';
 import { SpotCard } from './SpotCard';
 
 function exportCSV(d: GroupDetail) {
@@ -70,6 +71,7 @@ export function Admin({ gid, detail, isAppAdmin, onOpenReward }: { gid: string; 
       <GroupAccessCard gid={gid} detail={detail} />
       {isAppAdmin && <GrantTool gid={gid} detail={detail} onOpenReward={onOpenReward} />}
       <SpotCard gid={gid} />
+      <ResultReviewCard gid={gid} />
       <FieldReviewCard gid={gid} />
       <Card>
         <h3>Từng thành viên (7 ngày)</h3>

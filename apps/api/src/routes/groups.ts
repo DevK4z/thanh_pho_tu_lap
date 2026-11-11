@@ -276,6 +276,7 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
       verified: r.verified, proofStatus: r.proofStatus, proofReason: r.proofReason,
       recallQuestion: r.recallDue ? '' : r.recallQ, recallAnswer: r.recallA, recallScore: r.recallScore, recallVerdict: r.recallVerdict, recallReason: r.recallReason,
       spotResult: r.spotResult, review: r.review,
+      resultStatus: r.resultStatus, resultScore: r.resultScore, resultReason: r.resultReason,
     }));
   });
 }

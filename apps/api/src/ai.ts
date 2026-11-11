@@ -9,11 +9,15 @@ export interface PhotoVerdict { ok: boolean; reason: string }
 export interface RecallInput { act: ActKey; day: string; goal: string; note: string }
 export interface RecallJudgeInput extends RecallInput { question: string; answer: string }
 export interface RecallVerdict { score: number; verdict: string; reason: string }
+export interface ResultInput { act: ActKey; minutes: number; goal: string; text: string; imageBase64: string | null }
+export interface ResultVerdict { ok: boolean; score: number; reason: string }
 
 export interface EvidenceAI {
   checkPhoto(i: PhotoInput): Promise<PhotoVerdict>;
   recallQuestion(i: RecallInput): Promise<string>;
   judgeRecall(i: RecallJudgeInput): Promise<RecallVerdict>;
+  /** Kết quả cuối phiên có khớp mục tiêu và tương xứng với thời gian không. */
+  checkResult(i: ResultInput): Promise<ResultVerdict>;
 }
 
 /** Khóa API sai hoặc không có quyền: coi như chưa bật AI thay vì lỗi tạm thời. Gemini báo khóa sai bằng mã 400. */
@@ -26,6 +30,7 @@ const SYSTEM =
 
 const photoSchema = z.object({ code_match: z.boolean(), page_match: z.boolean(), activity_match: z.boolean(), real_photo: z.boolean(), reason: z.string() });
 const questionSchema = z.object({ question: z.string() });
+const resultSchema = z.object({ matches_goal: z.boolean(), enough_work: z.boolean(), real_work: z.boolean(), score: z.number(), reason: z.string() });
 const judgeSchema = z.object({ score: z.number(), verdict: z.enum(['khop', 'mot_phan', 'khong_khop']), reason: z.string() });
 
 const obj = (properties: Record<string, object>) => ({ type: 'object', properties, required: Object.keys(properties) });
@@ -33,6 +38,7 @@ const bool = { type: 'boolean' };
 const str = { type: 'string' };
 const photoFormat = obj({ code_match: bool, page_match: bool, activity_match: bool, real_photo: bool, reason: str });
 const questionFormat = obj({ question: str });
+const resultFormat = obj({ matches_goal: bool, enough_work: bool, real_work: bool, score: { type: 'integer' }, reason: str });
 const judgeFormat = obj({ score: { type: 'integer' }, verdict: { type: 'string', enum: ['khop', 'mot_phan', 'khong_khop'] }, reason: str });
 
 export function geminiAI(apiKey: string, model: string): EvidenceAI {
@@ -97,6 +103,27 @@ export function geminiAI(apiKey: string, model: string): EvidenceAI {
           'reason: một câu tiếng Việt ngắn.',
       }]);
       return { score: Math.max(0, Math.min(100, Math.round(r.score))), verdict: r.verdict, reason: r.reason };
+    },
+
+    async checkResult(i) {
+      const parts: Part[] = [];
+      if (i.imageBase64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: i.imageBase64 } });
+      parts.push({
+        text:
+          `Học sinh vừa hoàn thành phiên "${ACTS[i.act].n}" dài ${i.minutes} phút.\n` +
+          `Mục tiêu đăng ký trước phiên: <hs>${i.goal || '(không ghi)'}</hs>\n` +
+          `Cuối phiên học sinh nộp kết quả: ${i.imageBase64 ? 'một ảnh (đính kèm)' : 'không có ảnh'}` +
+          `${i.text ? ` và đoạn văn bản <hs>${i.text}</hs>` : ''}.\n` +
+          'Đánh giá kết quả (chấm kết quả, không chấm thời gian):\n' +
+          '1. matches_goal: kết quả có đúng là việc của mục tiêu đã đăng ký không.\n' +
+          `2. enough_work: lượng việc có tương xứng với ${i.minutes} phút tập trung của một học sinh phổ thông không. ` +
+          'Ví dụ 45 phút viết luận mà chỉ có 2 câu là không tương xứng; làm bài tập thì cần thấy số câu hoặc phần đã giải; đọc tài liệu thì cần ghi chép hoặc tóm tắt tương ứng.\n' +
+          '3. real_work: trông như học sinh tự làm trong phiên, không phải ảnh không liên quan, ảnh tải từ mạng hay nội dung chép nguyên từ nguồn khác.\n' +
+          'score: 0 đến 100 cho mức tương xứng chung. reason: một câu tiếng Việt ngắn, nói với học sinh, nêu rõ điểm còn thiếu nếu có.',
+      });
+      const r = await ask(resultSchema, resultFormat, parts);
+      const score = Math.max(0, Math.min(100, Math.round(r.score)));
+      return { ok: r.matches_goal && r.enough_work && r.real_work && score >= 60, score, reason: r.reason };
     },
   };
 }

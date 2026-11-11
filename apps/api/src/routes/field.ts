@@ -15,7 +15,7 @@ import { requireManager, uuidParam } from './groups';
 import { addDay } from './sessions';
 
 /** Ảnh xem được (gồm 'mid' của dữ liệu cũ). Chỉ ảnh bắt đầu được gửi qua đây; ảnh kết thúc phải có mã xác thực. */
-const KINDS = ['start', 'mid', 'end'] as const;
+const KINDS = ['start', 'mid', 'end', 'result'] as const;
 /** Cho phép trễ một chút vì còn phải nén và gửi ảnh. */
 const LATE_MS = 15_000;
 export const MAX_IMAGE_CHARS = 1_400_000;
@@ -106,7 +106,7 @@ export function fieldRoutes(app: FastifyInstance, { db, requireUser, isAdmin }: 
     await db.transaction(async (tx) => {
       const [row] = await tx.select({ s: focusSessions, p: players }).from(focusSessions)
         .innerJoin(players, eq(players.id, focusSessions.playerId)).where(and(eq(focusSessions.id, sid), eq(players.groupId, gid))).for('update');
-      if (!row || row.s.status !== 'done' || !ACTS[row.s.act].field) throw new HttpError(404, 'session_not_found', 'Không tìm thấy phiên cần duyệt.');
+      if (!row || row.s.status !== 'done' || !(ACTS[row.s.act].field || row.s.mode === 'screen')) throw new HttpError(404, 'session_not_found', 'Không tìm thấy phiên cần duyệt.');
       const { s, p } = row;
       if (p.userId === u.id) throw new HttpError(403, 'own_session', 'Bạn không thể tự duyệt phiên của mình.');
       const next = result === 'ok';
