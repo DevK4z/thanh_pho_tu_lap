@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { REASONS, RECALL_PASS, delta, keysBack, metrics, sumDays, trustOf, type Metrics, type Player, type QuitReason } from '@tptl/shared';
 import { BarChart, LineChart } from '../components/Charts';
-import { BigNumber, Button, Card, Chip, Eyebrow, Grid, KV, Meter, Pill, Trend } from '../components/ui';
+import { ItemArt } from '../components/Svg';
+import { BigNumber, Button, Card, Chip, EmptyState, Eyebrow, Grid, KV, Meter, Pill, Trend } from '../components/ui';
 import { dmy, fmtMin, num, pct } from '../lib/format';
 import { useLogs } from '../lib/queries';
 import type { Tab } from './GroupApp';
@@ -43,9 +44,10 @@ export function Mine({ gid, player: me, onTab }: { gid: string; player: Player; 
       <section className="flex flex-col gap-3.5">
         {header}
         <Card>
-          <h3>Chưa có phiên nào</h3>
-          <p className="text-muted">Hoàn thành phiên đầu tiên để thấy điểm kỷ luật, điểm tập trung và xu hướng tiến bộ ở đây.</p>
-          <div><Button variant="primary" onClick={() => onTab('focus')}>Đăng ký phiên đầu tiên</Button></div>
+          <EmptyState art={<ItemArt id="cay" className="h-20 w-16" />} title="Chưa có phiên nào"
+            action={<Button variant="primary" big onClick={() => onTab('focus')}>Đăng ký phiên đầu tiên</Button>}>
+            Hoàn thành phiên đầu tiên để thấy điểm kỷ luật, điểm tập trung và xu hướng tiến bộ ở đây. Mỗi phiên còn mang về một công trình cho thành phố của bạn.
+          </EmptyState>
         </Card>
       </section>
     );

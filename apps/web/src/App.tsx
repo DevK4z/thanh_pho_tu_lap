@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
-import { Button, Card, Muted } from './components/ui';
+import { Button, Card, Loading, Muted } from './components/ui';
 import { Who } from './components/Who';
 import { errorMessage } from './lib/api';
 import { useMe } from './lib/queries';
@@ -27,11 +27,15 @@ function WakeCard({ state, onRetry }: { state: ServerState; onRetry: () => void 
       </Card>
     );
   }
-  if (sec < 2) return <Card><Muted>Đang mở thành phố…</Muted></Card>;
+  if (sec < 2) return <Loading text="Đang mở thành phố…" />;
   return (
-    <Card>
+    <Card className="items-center text-center">
+      <div aria-hidden="true" className="bob text-5xl">🏗️</div>
       <h2>Đang khởi động máy chủ…</h2>
       <Muted>Máy chủ miễn phí ngủ khi không có ai dùng, lần mở đầu tiên mất khoảng 1 phút. Trang sẽ tự vào khi máy chủ sẵn sàng ({sec} giây).</Muted>
+      <div className="h-2 w-full max-w-sm overflow-hidden rounded-full bg-surface2" aria-hidden="true">
+        <i className="block h-full rounded-full bg-linear-to-r from-pine to-lamp transition-[width] duration-500" style={{ width: Math.min(95, Math.round((100 * sec) / 70)) + '%' }} />
+      </div>
     </Card>
   );
 }
@@ -57,7 +61,7 @@ export function App() {
   return <>{offline}{route()}</>;
 
   function route() {
-    if (me.isPending) return <Layout><Card><Muted>Đang mở thành phố…</Muted></Card></Layout>;
+    if (me.isPending) return <Layout><Loading text="Đang mở thành phố…" /></Layout>;
     // Lỗi mạng mà vẫn có dữ liệu lần trước thì cứ hiện dữ liệu đó (thanh trạng thái phía trên đã báo).
     if (me.isError && !me.data) {
       return (

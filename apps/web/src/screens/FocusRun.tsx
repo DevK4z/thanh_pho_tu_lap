@@ -35,6 +35,21 @@ function beep() {
   } catch { /* không phát được âm thanh thì vẫn còn tab nhấp nháy */ }
 }
 
+/** Trong lúc chạy phiên, cả ứng dụng chuyển sang nền tối dịu để mắt đỡ bị kích thích; kết thúc phiên thì trả lại như cũ. */
+function useFocusTheme() {
+  useEffect(() => {
+    const el = document.documentElement;
+    const prev = el.getAttribute('data-theme');
+    el.setAttribute('data-theme', 'dark');
+    return () => { if (prev == null) el.removeAttribute('data-theme'); else el.setAttribute('data-theme', prev); };
+  }, []);
+}
+
+const TICKS = Array.from({ length: 60 }, (_, i) => {
+  const a = (i / 60) * 2 * Math.PI - Math.PI / 2, r1 = i % 5 ? 103 : 101, r2 = 107;
+  return [110 + r1 * Math.cos(a), 110 + r1 * Math.sin(a), 110 + r2 * Math.cos(a), 110 + r2 * Math.sin(a)].map((v) => v.toFixed(1));
+});
+
 const clock = (ms: number) => new Date(ms).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 /** Nhật ký cảnh báo trong phiên: mỗi lần rời màn hình, kể cả các lần quay lại kịp trong thời gian ân hạn. */
@@ -65,6 +80,7 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
   // Học trên máy chỉ có câu kiểm tra hiện diện: được đổi tab, mở ứng dụng khác nên không giám sát rời trang.
   const watched = a.watch === 'fullscreen' || a.watch === 'visible';
   const stopRun = useRef<() => void>(() => {});
+  useFocusTheme();
 
   /** Gửi kết quả thất bại lên máy chủ rồi chuyển sang màn thất bại. */
   async function fail(info: Omit<FailInfo, 'lostStreak' | 'stats'>, m: RunMeasures) {
@@ -126,18 +142,23 @@ export function FocusRun({ me, s, onFinish, onFailed }: { me: Me; s: ActiveSessi
   }, [studying, run.check?.index]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const left = Math.ceil(ac.graceLeft);
+  // Phút cuối (hoặc 10% cuối) vòng chuyển sang màu đèn vàng báo sắp xong.
+  const done = 1 - run.left / s.plannedSec;
+  const closing = run.left <= Math.max(60, s.plannedSec * 0.1);
+  const ringColor = closing ? 'var(--lamp)' : 'var(--pine)';
   return (
-    <Card as="section" className="items-center text-center">
+    <Card as="section" className="focus-stage items-center text-center">
       <div>
         <Eyebrow>{a.n} · cam kết {Math.round(s.plannedSec / 60)} phút</Eyebrow>
         {s.goal && <p className="mt-1.5">{s.goal}</p>}
       </div>
-      <div className="ringbox">
+      <div className="ringbox" style={{ ['--ring' as string]: ringColor }}>
         <svg viewBox="0 0 220 220" aria-hidden="true">
+          {TICKS.map(([x1, y1, x2, y2], i) => <line key={i} className={'rtick' + (i / 60 < done ? ' on' : '')} x1={x1} y1={y1} x2={x2} y2={y2} />)}
           <circle className="rtrack" cx="110" cy="110" r="90" />
           <circle className="rbar" cx="110" cy="110" r="90" strokeDasharray={CIRC.toFixed(1)} strokeDashoffset={(CIRC * (run.left / s.plannedSec)).toFixed(1)} transform="rotate(-90 110 110)" />
         </svg>
-        <div className="rtime"><b>{mmss(run.left)}</b><span>còn lại</span></div>
+        <div className="rtime"><b style={{ color: closing ? 'var(--lamp)' : undefined }}>{mmss(run.left)}</b><span>còn lại</span>{closing && <span className="mt-1 font-semibold !text-lamp">Sắp xong, cố lên!</span>}</div>
       </div>
       {watched ? (
         <div className="flex w-full max-w-xl flex-col gap-3">

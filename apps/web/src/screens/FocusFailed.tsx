@@ -9,9 +9,11 @@ export function FocusFailed({ info, onRetry, onTown }: { info: FailInfo; onRetry
   const total = st ? st.tasksDone + st.tasksFailed : 0;
   return (
     <section className="flex flex-col gap-3.5">
-      <Card className="border-bad">
+      <Card className="border-bad bg-linear-to-b from-[color-mix(in_srgb,var(--bad)_8%,var(--surface))] to-surface">
         <div className="flex items-start gap-3">
-          <Icon name="fire" className="size-10 flex-none opacity-40 grayscale" />
+          <div className="shake grid size-14 flex-none place-items-center rounded-full bg-surface2">
+            <Icon name="fire" className="size-9 opacity-40 grayscale" />
+          </div>
           <div>
             <Eyebrow>{info.kind === 'violation' ? 'Phiên thất bại' : 'Đã dừng phiên'}</Eyebrow>
             <h2 className="text-bad">{info.kind === 'violation' ? 'Bạn đã mất tập trung!' : 'Phiên đã được ghi nhận là thất bại'}</h2>
@@ -29,6 +31,7 @@ export function FocusFailed({ info, onRetry, onTown }: { info: FailInfo; onRetry
             ['Tỷ lệ hoàn thành', total ? Math.round((100 * st.tasksDone) / total) + '%' : '–'],
           ]} />
         )}
+        <p className="rounded-lg bg-surface2 px-3 py-2 text-[13px] text-muted">Ai cũng có lúc xao nhãng. Bắt đầu lại bằng một phiên ngắn hơn để lấy lại nhịp, chuỗi mới bắt đầu từ phiên tiếp theo.</p>
         <div className="flex flex-wrap gap-2.5">
           <Button variant="primary" onClick={onRetry}>Thử lại phiên mới</Button>
           <Button onClick={onTown}>Về thành phố</Button>

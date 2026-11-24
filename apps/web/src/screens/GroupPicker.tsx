@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { INVITE_LENGTH, LIMITS, normalizeCode, type Me } from '@tptl/shared';
-import { Button, Card, Field, Grid, Heading, inputCls, Muted, Option, useToast } from '../components/ui';
+import { Icon } from '../components/Icons';
+import { Button, Card, EmptyState, Field, Grid, Heading, inputCls, Muted, Option, Skeleton, useToast } from '../components/ui';
 import { errorMessage } from '../lib/api';
 import { dmyFull } from '../lib/format';
 import { useConfig, useGroupMembership, useGroups } from '../lib/queries';
@@ -69,7 +70,7 @@ export function GroupPicker({ me }: { me: Me }) {
             <h3>Tất cả nhóm</h3>
             <Muted small className="mt-1">Chỉ quản trị viên ứng dụng thấy danh sách này. Bấm một nhóm để vào với quyền quản trị.</Muted>
           </div>
-          {groups.isPending ? <Muted small>Đang tải…</Muted> : groups.isError ? <Muted small>{errorMessage(groups.error)}</Muted> : !list.length ? <Muted small>Chưa có nhóm nào.</Muted> : (
+          {groups.isPending ? <div className="flex flex-col gap-2"><Muted small>Đang tải…</Muted><Skeleton className="h-14" /><Skeleton className="h-14" /></div> : groups.isError ? <Muted small>{errorMessage(groups.error)}</Muted> : !list.length ? <EmptyState compact art={<Icon name="build" className="size-9" />} title="Chưa có nhóm nào">Lập nhóm đầu tiên ở khung bên cạnh rồi gửi mã mời cho các thành viên.</EmptyState> : (
             <ul className="flex max-h-96 flex-col gap-2 overflow-y-auto">
               {list.map((g) => (
                 <li key={g.id} className="flex flex-col">
