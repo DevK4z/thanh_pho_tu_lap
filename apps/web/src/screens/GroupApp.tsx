@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ACTS, type ActiveSession, type Me, type SessionResult } from '@tptl/shared';
-import { Button, Card, Muted, useToast } from '../components/ui';
+import { Icon, type IconName } from '../components/Icons';
+import { Button, Card, Loading, Muted, useToast } from '../components/ui';
 import { Who } from '../components/Who';
 import { Layout } from '../components/Layout';
 import { api, ApiError, errorMessage } from '../lib/api';
@@ -25,6 +26,39 @@ export type Flow =
   | { step: 'verify'; s: ActiveSession; m: RunMeasures }
   | { step: 'reward'; result: SessionResult | null }
   | { step: 'failed'; info: FailInfo };
+
+const TAB_ICON: Record<Tab, IconName> = { town: 'build', focus: 'timer', mine: 'chart', group: 'pop', rank: 'group', admin: 'gear' };
+
+/** Thanh tab có vạch chọn trượt theo tab đang mở. Trên điện thoại (CSS .tabnav) thanh nằm cố định ở đáy màn hình. */
+function TabNav({ tabs, current, go }: { tabs: [Tab, string][]; current: Tab; go: (t: Tab) => void }) {
+  const ref = useRef<HTMLElement>(null);
+  const [ind, setInd] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const nav = ref.current;
+    if (!nav) return;
+    const measure = () => {
+      const b = nav.querySelector<HTMLElement>('[aria-current="page"]');
+      setInd(b ? { left: b.offsetLeft, top: b.offsetTop, width: b.offsetWidth, height: b.offsetHeight } : null);
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(nav);
+    window.addEventListener('resize', measure);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', measure); };
+  }, [current, tabs.length]);
+  return (
+    <nav ref={ref} className="tabnav mb-4 flex gap-1.5 overflow-x-auto border-b border-line pb-2" aria-label="Điều hướng">
+      {ind && ind.width > 0 && <span aria-hidden="true" className="tabind" style={ind} />}
+      {tabs.map(([k, label]) => (
+        <button key={k} type="button" onClick={() => go(k)} aria-current={current === k ? 'page' : undefined}
+          className={'flex items-center gap-2 whitespace-nowrap rounded-[10px] px-[15px] py-[9px] text-sm font-semibold ' + (current === k ? (ind?.width ? 'text-pine-ink' : 'bg-pine text-pine-ink') : 'text-muted hover:bg-surface2 hover:text-ink')}>
+          <Icon name={TAB_ICON[k]} className={'size-5 flex-none' + (current === k ? ' drop-shadow-[0_1px_1px_rgba(0,0,0,.25)]' : ' opacity-80')} />
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+}
 
 export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   const toast = useToast();
@@ -65,7 +99,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     if (flow?.step === 'reward' && player && !player.pending.length) setFlow(null);
   }, [flow, player]);
 
-  const who = <Who me={me} group={d?.group ?? null} isOwner={!!d?.isOwner} locked={inFlow} />;
+  const who = <Who me={me} group={d?.group ?? null} isOwner={!!d?.isOwner} locked={inFlow} streak={player?.currentStreak} />;
 
   if (q.isError) {
     const gone = q.error instanceof ApiError && (q.error.status === 404 || q.error.status === 403);
@@ -82,7 +116,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
       </Layout>
     );
   }
-  if (!d) return <Layout who={who}><Card><Muted>Đang tải dữ liệu nhóm…</Muted></Card></Layout>;
+  if (!d) return <Layout who={who}><Loading text="Đang tải dữ liệu nhóm…" lines={4} /></Layout>;
 
   const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['mine', 'Của tôi'], ['group', 'Nhóm'], ['rank', 'Xếp hạng']];
   if (d.canManage) tabs.push(['admin', 'Quản trị']);
@@ -93,16 +127,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     if (flow?.step === 'reward' && t !== 'town') { toast('Hãy đặt công trình trước.'); return; }
     setTab(t);
   }
-  const nav = (
-    <nav className="mb-4 flex gap-1.5 overflow-x-auto border-b border-line pb-2" aria-label="Điều hướng">
-      {tabs.map(([k, label]) => (
-        <button key={k} type="button" onClick={() => go(k)} aria-current={current === k ? 'page' : undefined}
-          className={'whitespace-nowrap rounded-[10px] px-[15px] py-[9px] text-sm font-semibold ' + (current === k ? 'bg-pine text-pine-ink' : 'text-muted hover:bg-surface2')}>
-          {label}
-        </button>
-      ))}
-    </nav>
-  );
+  const nav = <TabNav tabs={tabs} current={current} go={go} />;
 
   let body;
   if (flow?.step === 'run') {

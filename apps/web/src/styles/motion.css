@@ -1,0 +1,130 @@
+/* Chuyển động và hiệu ứng giao diện: xuất hiện, nhận thưởng, khung chờ, vòng đếm giờ, thanh điều hướng.
+   Người dùng bật "giảm chuyển động" thì mọi hiệu ứng tắt (cuối file). */
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { 0% { opacity: 0; transform: scale(.6) translateY(14px); } 60% { opacity: 1; transform: scale(1.06); } 100% { transform: none; } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+@keyframes shine { 0%, 55% { transform: translateX(-120%) skewX(-20deg); } 100% { transform: translateX(220%) skewX(-20deg); } }
+@keyframes breathe { 0%, 100% { transform: scale(.94); opacity: .45; } 50% { transform: scale(1.04); opacity: .9; } }
+@keyframes flame { 0%, 100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.12) rotate(3deg); } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes confetti { 0% { transform: translate3d(0, -10vh, 0) rotate(0); opacity: 1; } 100% { transform: translate3d(var(--dx), 105vh, 0) rotate(var(--rot)); opacity: .9; } }
+@keyframes ray { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes float-tile { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+.rise { animation: rise .32s cubic-bezier(.2, .8, .2, 1) backwards; }
+.pop-in { animation: pop .5s cubic-bezier(.2, .9, .3, 1.2) backwards; }
+.modal-in { animation: modal-in .22s cubic-bezier(.2, .8, .2, 1) both; }
+.fade-in { animation: fade .2s ease-out both; }
+.toast-in { animation: toast-in .25s cubic-bezier(.2, .8, .2, 1) both; }
+.bob { animation: bob 3.2s ease-in-out infinite; }
+.flame { display: inline-block; transform-origin: 50% 90%; animation: flame 1.3s ease-in-out infinite; }
+
+/* Khung chờ nhấp nháy khi đang tải. */
+.skel {
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--surface2) 25%, color-mix(in srgb, var(--surface2) 55%, var(--surface)) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* ---------- ô công trình theo hạng ---------- */
+.itm { transition: transform .15s, box-shadow .15s, border-color .15s; position: relative; overflow: hidden; --tc: var(--t1); }
+.itm[data-tier="2"] { --tc: var(--t2); }
+.itm[data-tier="3"] { --tc: var(--t3); }
+.itm[data-tier="4"] { --tc: var(--t4); }
+.itm { border-color: color-mix(in srgb, var(--tc) 45%, var(--line)); background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 14%, var(--surface)), var(--surface) 70%); }
+.itm:hover { transform: translateY(-3px); box-shadow: 0 8px 18px color-mix(in srgb, var(--tc) 30%, transparent); }
+.itm[aria-pressed="true"] { border-color: var(--tc); box-shadow: inset 0 0 0 2px var(--tc), 0 8px 22px color-mix(in srgb, var(--tc) 40%, transparent); transform: translateY(-3px); }
+.itm small { color: var(--tc); font-weight: 700; }
+.itm[data-tier="4"]::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 18px color-mix(in srgb, var(--tc) 35%, transparent); }
+/* Công trình mạ vàng: vệt sáng chạy ngang. */
+.shiny { position: relative; overflow: hidden; }
+.shiny::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; pointer-events: none; z-index: 1;
+  background: linear-gradient(90deg, transparent, rgba(255, 240, 180, .65), transparent);
+  animation: shine 2.8s ease-in-out infinite;
+}
+.tier-tag { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2px 10px; font-size: 12px; font-weight: 700; color: #fff; background: var(--tc, var(--t1)); }
+
+/* ---------- màn nhận thưởng ---------- */
+.reward-hero { position: relative; overflow: hidden; isolation: isolate; }
+.reward-hero::before {
+  content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 900px; height: 900px; margin: -450px 0 0 -450px; opacity: .35;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--lamp) 40%, transparent) 0 10deg, transparent 10deg 20deg);
+  mask: radial-gradient(circle, #000 0, transparent 60%);
+  animation: ray 40s linear infinite;
+}
+.levelup {
+  border-radius: 14px; padding: 12px 14px; color: #3a2600; font-weight: 700;
+  background: linear-gradient(135deg, #ffe07a, #f6ac14); box-shadow: 0 6px 18px rgba(246, 172, 20, .35);
+}
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 90; overflow: hidden; }
+.confetti i { position: absolute; top: 0; width: 9px; height: 14px; border-radius: 2px; animation: confetti var(--dur) cubic-bezier(.25, .6, .4, 1) var(--delay) both; }
+
+/* ---------- vòng đếm giờ ---------- */
+.ringbox::before {
+  content: ''; position: absolute; inset: 6%; border-radius: 50%; z-index: -1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--ring, var(--pine)) 45%, transparent), transparent 68%);
+  animation: breathe 6s ease-in-out infinite;
+}
+.ringbox { isolation: isolate; }
+.rbar { stroke: var(--ring, var(--pine)); transition: stroke-dashoffset 1s linear, stroke .6s; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ring, var(--pine)) 60%, transparent)); }
+.rtick { stroke: var(--line); stroke-width: 1.5; }
+.rtick.on { stroke: color-mix(in srgb, var(--ring, var(--pine)) 70%, var(--line)); }
+.rtime b { transition: color .6s; }
+.focus-stage { background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--pine) 12%, var(--surface)), var(--surface) 60%); }
+
+/* ---------- thanh điều hướng ---------- */
+.tabnav { position: relative; }
+.tabind { position: absolute; border-radius: 10px; background: var(--pine); box-shadow: 0 4px 12px color-mix(in srgb, var(--pine) 35%, transparent); transition: left .3s cubic-bezier(.3, .9, .3, 1), width .3s cubic-bezier(.3, .9, .3, 1), top .3s, height .3s; z-index: 0; }
+.tabnav button { position: relative; z-index: 1; transition: color .2s; }
+.tabnav button[aria-current="page"] svg { animation: pop .35s ease-out; }
+@media (max-width: 640px) {
+  .tabnav {
+    position: fixed; z-index: 40; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); margin: 0 !important;
+    justify-content: space-around; border: 1px solid var(--line) !important; border-radius: 18px; padding: 6px !important;
+    background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-lg);
+  }
+  .tabnav button { flex: 1 1 0; flex-direction: column; gap: 2px !important; padding: 6px 2px !important; font-size: 11px !important; }
+  body:has(.tabnav) { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ---------- đăng nhập ---------- */
+.login-hero { position: relative; border-radius: 22px; overflow: hidden; box-shadow: var(--shadow-md); }
+.login-hero .scene-wrap svg { display: block; width: 100%; height: auto; }
+.login-hero .scene-wrap { animation: float-tile 7s ease-in-out infinite; }
+.login-hero::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 55%, color-mix(in srgb, var(--bg) 85%, transparent)); }
+
+/* ---------- bảng xếp hạng ---------- */
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 10px; }
+.podium > div { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; min-width: 0; }
+.podium .step { width: 100%; border-radius: 12px 12px 4px 4px; display: grid; place-items: center; color: #fff; font: 700 28px var(--font-hud); text-shadow: 0 2px 0 rgba(0, 0, 0, .2); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .35); }
+.medal-row { position: relative; }
+.medal-row[data-rank="1"] { border-color: #f6b21b !important; background: linear-gradient(90deg, rgba(246, 178, 27, .14), transparent 60%); }
+.medal-row[data-rank="2"] { border-color: #9aa7b4 !important; background: linear-gradient(90deg, rgba(154, 167, 180, .14), transparent 60%); }
+.medal-row[data-rank="3"] { border-color: #c9803a !important; background: linear-gradient(90deg, rgba(201, 128, 58, .14), transparent 60%); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .confetti { display: none; }
+}
+
+.card { box-shadow: var(--shadow-sm), inset 0 1px 0 var(--hi); }
+
+/* Nút và ô trong màn hình game (trang Thành phố). */
+.gbtn { transition: transform .1s, box-shadow .1s, filter .15s; }
+.gbtn:not([disabled]):hover { filter: brightness(1.06); }
+.gbtn:not([disabled]):active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, .18); }
+.tbtn { transition: background-color .15s, transform .1s; }
+.tbtn:active { transform: scale(.97); }
+.dk { transition: transform .15s, box-shadow .15s; }
+.dk:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(40, 60, 30, .15); }
+.lvbadge { animation: pop .6s cubic-bezier(.2, .9, .3, 1.2) backwards; }
+
+@keyframes shake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px) rotate(-4deg); } 40% { transform: translateX(6px) rotate(4deg); } 60% { transform: translateX(-4px) rotate(-2deg); } 80% { transform: translateX(3px); } }
+.shake { animation: shake .6s ease-in-out .15s backwards; }

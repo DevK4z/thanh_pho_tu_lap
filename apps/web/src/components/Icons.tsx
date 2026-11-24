@@ -16,6 +16,10 @@ const ICONS = {
   star: '<polygon points="12,2 15,9 22,9.5 16.5,14 18.5,21.5 12,17.5 5.5,21.5 7.5,14 2,9.5 9,9"/>',
   fire: '<path d="M12 2c1 3.5 5 5.5 5 11a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 0 2 1 3 2 3.5C11 8.5 11 5 12 2z" fill="#ff7a29"/><path d="M12 13c.8 1.3 2.2 2 2.2 4a2.2 2.2 0 0 1-4.4 0c0-1.3.6-2.2 2.2-4z" fill="#ffd04a"/>',
   shield: '<path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z" fill="#2f8cf0"/><path d="M8 12l3 3 5-6" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  gear: '<path d="M10.3 2h3.4l.5 2.6 1.9.8 2.2-1.5 2.4 2.4-1.5 2.2.8 1.9 2.6.5v3.4l-2.6.5-.8 1.9 1.5 2.2-2.4 2.4-2.2-1.5-1.9.8-.5 2.6h-3.4l-.5-2.6-1.9-.8-2.2 1.5-2.4-2.4 1.5-2.2-.8-1.9L2 13.7v-3.4l2.6-.5.8-1.9-1.5-2.2 2.4-2.4 2.2 1.5 1.9-.8z" fill="#7d8b99"/><circle cx="12" cy="12" r="3.6" fill="#fff"/>',
+  crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z" fill="#f6b21b" stroke="#c98a0a" stroke-width="1.2" stroke-linejoin="round"/><circle cx="12" cy="14.5" r="1.6" fill="#e5483a"/>',
+  sparkle: '<path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z" fill="#ffd54a" stroke="#e0a400" stroke-width="1"/>',
+  logo: '<polygon points="12,3 21,8 12,13 3,8" fill="#7ccb55"/><polygon points="3,8 12,13 12,22 3,17" fill="#4f9a3a"/><polygon points="21,8 12,13 12,22 21,17" fill="#3b7d2c"/><polygon points="9,6.5 13,4.4 16,6 12,8.2" fill="#f6b21b"/><rect x="10.6" y="7.2" width="2.8" height="4" fill="#e85d3a"/><polygon points="10,7.6 12,5.6 14,7.6" fill="#b4413a"/>',
 } as const;
 export type IconName = keyof typeof ICONS;
 

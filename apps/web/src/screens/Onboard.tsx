@@ -46,7 +46,7 @@ export function Onboard({ gid, defaultName, onCreated }: { gid: string; defaultN
         <Grid>
           {HKEYS.map((k) => (
             <Option key={k} pressed={style === k} onClick={() => setStyle(k)} title={HST[k].n}>
-              <House style={k} lv={4} className="max-h-[150px] w-full rounded-lg bg-[var(--sea1)]" />
+              <House style={k} lv={4} className="max-h-[150px] w-full rounded-lg bg-(--sea1)" />
             </Option>
           ))}
         </Grid>

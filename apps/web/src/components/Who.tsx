@@ -2,12 +2,13 @@ import { useState } from 'react';
 import type { GroupInfo, Me } from '@tptl/shared';
 import { errorMessage } from '../lib/api';
 import { useGroupMembership, useSignOut } from '../lib/queries';
+import { Icon } from './Icons';
 import { Button, LinkButton, Modal, Pill, useToast } from './ui';
 
 const PROVIDER = { google: 'Google', facebook: 'Facebook', guest: 'Khách' } as const;
 
 /** Góc trên bên phải: tên, cách đăng nhập, nhóm, nút đổi nhóm và đăng xuất (ẩn khi đang trong phiên). */
-export function Who({ me, group, isOwner, locked }: { me: Me; group: GroupInfo | null; isOwner?: boolean; locked?: boolean }) {
+export function Who({ me, group, isOwner, locked, streak }: { me: Me; group: GroupInfo | null; isOwner?: boolean; locked?: boolean; streak?: number }) {
   const toast = useToast();
   const signOut = useSignOut();
   const { leave } = useGroupMembership();
@@ -24,7 +25,15 @@ export function Who({ me, group, isOwner, locked }: { me: Me; group: GroupInfo |
   return (
     <div className="flex flex-col items-end gap-0.5 text-right text-[13px] text-muted">
       <div className="flex items-center gap-2">
-        {me.avatarUrl && <img src={me.avatarUrl} alt="" className="size-6 rounded-full" referrerPolicy="no-referrer" />}
+        {streak != null && (
+          <span title="Chuỗi phiên thành công liên tiếp" className={'flex items-center gap-1 rounded-full border px-2 py-0.5 font-bold tabular-nums ' + (streak ? 'border-[#ffb37a] bg-[color-mix(in_srgb,#ff7a29_12%,var(--surface))] text-[color-mix(in_srgb,#ff7a29_75%,var(--ink))]' : 'border-line text-muted')}>
+            <Icon name="fire" className={'size-4' + (streak ? ' flame' : ' grayscale')} />
+            <span className="sr-only">Chuỗi</span>{streak}
+          </span>
+        )}
+        {me.avatarUrl ? <img src={me.avatarUrl} alt="" className="size-7 rounded-full ring-2 ring-surface shadow-(--shadow-sm)" referrerPolicy="no-referrer" /> : (
+          <span aria-hidden="true" className="grid size-7 place-items-center rounded-full bg-linear-to-br from-pine to-[color-mix(in_srgb,var(--pine)_50%,var(--lamp))] text-[13px] font-bold text-pine-ink uppercase">{me.name.trim().charAt(0) || '?'}</span>
+        )}
         <b className="text-ink">{me.name}</b> <Pill>{PROVIDER[me.provider]}</Pill>
       </div>
       {group && <div>Nhóm {group.name}{isOwner ? ' · trưởng nhóm' : me.isAdmin ? ' · quản trị viên' : ''}</div>}

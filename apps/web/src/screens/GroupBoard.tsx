@@ -1,6 +1,7 @@
 import { REASONS, delta, keysBack, metrics, sumDays, emptyDay, type GroupDetail, type QuitReason } from '@tptl/shared';
 import { Legend, LineChart } from '../components/Charts';
-import { BigNumber, Card, Eyebrow, Grid, KV, Meter, Pill, Trend, tableCls as t } from '../components/ui';
+import { Icon } from '../components/Icons';
+import { BigNumber, Card, EmptyState, Eyebrow, Grid, KV, Meter, Pill, Trend, tableCls as t } from '../components/ui';
 import { num, pct } from '../lib/format';
 
 /** Tổng hợp cả nhóm cho tuần thứ `off` tính lùi từ tuần này (0 = 7 ngày gần nhất). */
@@ -28,7 +29,13 @@ function groupWeek(d: GroupDetail, off: number) {
 
 export function GroupBoard({ detail }: { detail: GroupDetail }) {
   if (!detail.players.length) {
-    return <Card as="section"><h2>Chưa có thành viên</h2><p className="text-muted">Khi có người tạo nhà và hoàn thành phiên, số liệu cả nhóm sẽ hiện ở đây.</p></Card>;
+    return (
+      <Card as="section">
+        <EmptyState art={<Icon name="pop" className="size-12" />} title="Chưa có thành viên">
+          Khi có người tạo nhà và hoàn thành phiên, số liệu cả nhóm sẽ hiện ở đây. Trưởng nhóm gửi mã mời trong tab Quản trị để mọi người cùng vào.
+        </EmptyState>
+      </Card>
+    );
   }
   const w = [5, 4, 3, 2, 1, 0].map((o) => groupWeek(detail, o));
   const cur = w[5], prv = w[4];

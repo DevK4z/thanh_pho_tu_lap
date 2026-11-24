@@ -39,3 +39,24 @@
 :root{--pk:#fbf6e6;--pk2:#f2e9cb;--pkline:#e4d6a8;--ptitle:#1d4f91;--psub:#7b8a86}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pk:#18302d;--pk2:#1f3a36;--pkline:#2d4a45;--ptitle:#8fc6ff;--psub:#9ab5af}}
 :root[data-theme="dark"]{--pk:#18302d;--pk2:#1f3a36;--pkline:#2d4a45;--ptitle:#8fc6ff;--psub:#9ab5af}
+
+/* Chiều sâu và màu hạng công trình (Mộc, Tinh, Quý, Hiếm). */
+:root{
+  --shadow-sm:0 1px 2px rgba(22,48,43,.06),0 2px 6px rgba(22,48,43,.06);
+  --shadow-md:0 2px 4px rgba(22,48,43,.06),0 8px 22px rgba(22,48,43,.10);
+  --shadow-lg:0 10px 40px rgba(22,48,43,.22);
+  --hi:rgba(255,255,255,.75);
+  --pine-deep:#123c33; --lamp-deep:#b67a0b; --bad-deep:#7a1e16;
+  --t1:#8a7a5c; --t2:#2f9d73; --t3:#3a74d8; --t4:#a24de0;
+  --bg-glow1:rgba(124,203,85,.16); --bg-glow2:rgba(231,165,33,.10);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3);--shadow-md:0 2px 4px rgba(0,0,0,.25),0 8px 22px rgba(0,0,0,.3);--shadow-lg:0 10px 40px rgba(0,0,0,.55);
+  --hi:rgba(255,255,255,.06);--pine-deep:#2b8a6d;--lamp-deep:#a87412;--bad-deep:#a8443a;
+  --t1:#c2ad84;--t2:#55d3a0;--t3:#7aa8ff;--t4:#cf8cff;--bg-glow1:rgba(98,198,166,.08);--bg-glow2:rgba(242,184,64,.05);
+}}
+:root[data-theme="dark"]{
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3);--shadow-md:0 2px 4px rgba(0,0,0,.25),0 8px 22px rgba(0,0,0,.3);--shadow-lg:0 10px 40px rgba(0,0,0,.55);
+  --hi:rgba(255,255,255,.06);--pine-deep:#2b8a6d;--lamp-deep:#a87412;--bad-deep:#a8443a;
+  --t1:#c2ad84;--t2:#55d3a0;--t3:#7aa8ff;--t4:#cf8cff;--bg-glow1:rgba(98,198,166,.08);--bg-glow2:rgba(242,184,64,.05);
+}
