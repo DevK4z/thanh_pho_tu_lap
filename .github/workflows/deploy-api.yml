@@ -1,0 +1,51 @@
+# Deploy API lên Render mỗi khi main có thay đổi ở API hoặc phần dùng chung.
+# Tự deploy qua tích hợp GitHub của Render có lúc không chạy, nên gọi thẳng Deploy Hook:
+# Render > dịch vụ tptl-api > Settings > Deploy Hook > sao chép URL,
+# rồi GitHub > Settings > Secrets and variables > Actions > New repository secret: RENDER_DEPLOY_HOOK.
+# Chưa có secret thì bỏ qua. Sau khi gọi, chờ /health báo đúng commit mới để chắc bản mới đã chạy.
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/shared/**'
+      - 'package-lock.json'
+      - 'render.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Gọi Deploy Hook của Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::Chưa có secret RENDER_DEPLOY_HOOK nên không deploy API. Xem hướng dẫn ở đầu file deploy-api.yml."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" -o /dev/null
+          echo "HOOK_CALLED=1" >> "$GITHUB_ENV"
+      - name: Chờ bản mới chạy
+        if: env.HOOK_CALLED == '1' && vars.API_URL != ''
+        env:
+          API_URL: ${{ vars.API_URL }}
+          SHA: ${{ github.sha }}
+        run: |
+          want="${SHA:0:7}"
+          for i in $(seq 1 80); do
+            got=$(curl -s --max-time 60 "$API_URL/health" | sed -n 's/.*"commit":"\([0-9a-f]*\)".*/\1/p')
+            if [ "$got" = "$want" ]; then echo "API đang chạy $want."; exit 0; fi
+            echo "Đang chờ… API đang chạy ${got:-?}, cần $want."
+            sleep 15
+          done
+          echo "::error::Sau 20 phút API vẫn chưa chạy bản $want. Xem log deploy trên Render."
+          exit 1

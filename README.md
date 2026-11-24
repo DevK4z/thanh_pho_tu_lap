@@ -127,6 +127,8 @@ Giao diện là trang tĩnh (GitHub Pages); API cần một máy chủ Node.js v
    - `GEMINI_API_KEY`: khóa Gemini API để kiểm tra ảnh và câu hỏi nhớ lại (bỏ trống thì phiên ngoài màn hình ở trạng thái chưa xác minh). `AI_MODEL` đổi mô hình, mặc định `gemini-3.5-flash-lite`. Điều khoản Gemini API yêu cầu người dùng từ 18 tuổi; gói miễn phí dùng nội dung gửi lên để cải thiện sản phẩm và không nhận thông tin cá nhân, nên cần xem lại trước khi bật cho học sinh.
    - `ADMIN_EMAILS`: email quản trị viên ứng dụng, cách nhau bằng dấu phẩy. Đặt ở biến môi trường thay vì trong code để không lộ email trên repo công khai.
 
+   **Tự deploy API:** Render > `tptl-api` > Settings > Deploy Hook, sao chép URL vào GitHub secret `RENDER_DEPLOY_HOOK`. Từ đó mỗi lần `main` có thay đổi ở `apps/api`, `packages/shared`, `package-lock.json` hoặc `render.yaml`, [deploy-api.yml](.github/workflows/deploy-api.yml) gọi hook và chờ `/health` báo đúng commit mới.
+
    Gói miễn phí của Render sẽ ngủ khi không có ai dùng, lần mở đầu tiên chậm vài chục giây; database miễn phí có thời hạn. Có thể dùng nơi khác chạy được Docker (Railway, Fly.io, VPS) với cùng các biến.
 2. **Web trên GitHub Pages**: Settings > Pages > Source: GitHub Actions. Settings > Secrets and variables > Actions > Variables: tạo `API_URL` = địa chỉ API (ví dụ `https://tptl-api.onrender.com`). Mỗi lần push lên `main`, [pages.yml](.github/workflows/pages.yml) build và triển khai; [ci.yml](.github/workflows/ci.yml) chạy kiểm tra kiểu, test và build.
 
