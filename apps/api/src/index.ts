@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { buildApp } from './app';
 import { openDatabase } from './db/client';
 import { loadEnv } from './env';
+import { keepAliveUrl, startKeepAlive } from './keepalive';
 
 const env = loadEnv();
 const database = await openDatabase({
@@ -12,7 +13,9 @@ const database = await openDatabase({
 });
 const app = await buildApp({ db: database.db, env, logger: true });
 
+let stopKeepAlive = () => {};
 const stop = async () => {
+  stopKeepAlive();
   await app.close();
   await database.close();
   process.exit(0);
@@ -21,4 +24,6 @@ process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 
 await app.listen({ port: env.PORT, host: env.HOST });
+const ka = keepAliveUrl();
+if (ka) stopKeepAlive = startKeepAlive(ka, app.log);
 if (!env.DATABASE_URL) app.log.info(`Đang dùng PGlite tại ${env.PGLITE_DIR} (đặt DATABASE_URL để dùng PostgreSQL).`);

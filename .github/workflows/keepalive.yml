@@ -1,6 +1,7 @@
 # Gọi API mỗi 10 phút để server miễn phí của Render không ngủ (ngủ sau 15 phút không có truy cập, mở lại mất khoảng 1 phút).
 # Một dịch vụ chạy cả tháng dùng khoảng 720 giờ, nằm trong 750 giờ miễn phí mỗi tháng của Render.
-# Lịch của GitHub có thể trễ vài phút; GitHub tự tắt lịch sau 60 ngày repo không có hoạt động.
+# Chỉ là lớp dự phòng: thực tế GitHub chỉ chạy lịch này vài tiếng một lần và tự tắt sau 60 ngày repo không có hoạt động.
+# Việc giữ thức chính do API tự làm (apps/api/src/keepalive.ts, tự bật trên Render).
 name: Giữ API thức
 
 on:
