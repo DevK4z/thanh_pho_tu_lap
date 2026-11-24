@@ -16,12 +16,11 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# Hai job riêng như mẫu chính thức của GitHub Pages: deploy chạy trong cùng job với upload
+# có lúc không thấy gói vừa tải lên ("No artifacts named github-pages were found").
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,5 +43,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
