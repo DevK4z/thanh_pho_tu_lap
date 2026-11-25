@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { HKEYS, ITEMS, type PlotItem } from '@tptl/shared';
 import { CityScene } from './CityScene';
 import { seasonWeather } from './effects';
+import { dominantPhase, hourStep, phaseWeights } from './daycycle';
 
 const allItems: PlotItem[] = ITEMS.map((it, i) => ({ s: i * 2, i: it.id, t: it.t, g: (i % 3 === 0 ? 1 : 0) as 0 | 1 }));
 const owner = (lvMin: number, style = HKEYS[0], plot = allItems) => ({ name: 'An', style, totalFocusMin: lvMin, plot });
@@ -103,6 +104,30 @@ describe('CityScene', () => {
     expect(rainy).toContain('rain');
     expect(rainy).not.toContain('snow');
     expect(seasonWeather(new Date(2026, 6, 10, 8))).toBe(seasonWeather(new Date(2026, 6, 10, 22)));
+  });
+
+  it('chu kỳ ngày đêm: trọng số cộng bằng 1, chuyển liên tục không nhảy cóc, đúng thời điểm', () => {
+    let prev = phaseWeights(0);
+    for (let h = 0; h <= 24.001; h += 0.05) {
+      const w = phaseWeights(h);
+      expect(w.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 6);
+      w.forEach((x, i) => expect(Math.abs(x - prev[i])).toBeLessThan(0.12));
+      prev = w;
+    }
+    expect(dominantPhase(12)).toBe('day');
+    expect(dominantPhase(18)).toBe('dusk');
+    expect(dominantPhase(5.3)).toBe('dusk');
+    expect(dominantPhase(23)).toBe('night');
+    expect(phaseWeights(12)[0]).toBeCloseTo(1);
+    expect(phaseWeights(1)[2]).toBeCloseTo(1);
+  });
+
+  it('tua thời gian: ngày sang đêm đi xuôi qua hoàng hôn, đêm sang ngày đi xuôi qua bình minh, lùi nhẹ khi đích ngay phía sau', () => {
+    expect(hourStep(12, 23)).toBe(11);
+    expect(hourStep(23, 12)).toBe(13);
+    expect(hourStep(12, 10)).toBe(-2);
+    expect(hourStep(18, 12)).toBe(18);
+    expect(hourStep(9, 9)).toBe(0);
   });
 
   it('không có onPick thì không có lô bấm được', async () => {

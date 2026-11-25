@@ -2,15 +2,15 @@
    Điều khiển: kéo chuột trái để xoay, cuộn để phóng to, kéo chuột phải (hoặc hai ngón) để di chuyển. */
 import { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { CameraControls, Environment, Lightformer, Stars } from '@react-three/drei';
+import { CameraControls, Environment, Lightformer } from '@react-three/drei';
 import type * as THREE from 'three';
 import { HST, ITEMS, POP, TIERS, levelOf } from '@tptl/shared';
 import type { CityOwner } from '../iso';
 import { CityScene, cellPos, type HoverInfo, type Selected } from './CityScene';
 import { seasonWeather, type Weather } from './effects';
+import { DayCycle, PHASES, SKY, WEATHERS, dominantPhase, type Phase } from './daycycle';
 
 type TimeMode = 'auto' | 'day' | 'dusk' | 'night';
-type Phase = 'day' | 'dusk' | 'night';
 type WeatherMode = 'auto' | Weather;
 
 const WEATHER_LABEL: Record<Weather, string> = { clear: '☀️ Nắng', rain: '🌧️ Mưa', snow: '❄️ Tuyết' };
@@ -23,31 +23,12 @@ const load = <T extends string>(k: string, d: T, ok: readonly T[]): T => {
 };
 const save = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* bỏ qua */ } };
 
-const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-/** Theo giờ máy: đêm 19h–5h, hoàng hôn/bình minh 17h–19h và 5h–6h30, còn lại là ngày. */
-const phaseNow = (): Phase => {
-  const d = new Date(), h = d.getHours() + d.getMinutes() / 60;
-  if (h < 5 || h >= 19) return 'night';
-  return h >= 17 || h < 6.5 ? 'dusk' : 'day';
-};
-/** Màu trời (nền CSS phía sau canvas trong suốt) và màu sương mù khớp đường chân trời. */
-const SKY: Record<Phase, { bg: string; fog: string }> = {
-  day: { bg: 'linear-gradient(180deg,#5aaef0 0%,#9fd4fb 45%,#dff1ff 100%)', fog: '#cfe8fb' },
-  dusk: { bg: 'linear-gradient(180deg,#2e3a78 0%,#8a5b9c 32%,#e2788a 60%,#f8b56f 85%,#ffd9a0 100%)', fog: '#e8a08f' },
-  night: { bg: 'linear-gradient(180deg,#03081a 0%,#0a1433 55%,#1a2c5c 100%)', fog: '#0f1c3d' },
-};
-/** Trời khi mưa (xám, tối) và khi tuyết (xám sáng). */
-const SKY_RAIN: Record<Phase, { bg: string; fog: string }> = {
-  day: { bg: 'linear-gradient(180deg,#5d6876 0%,#8c97a4 50%,#b9c2cc 100%)', fog: '#a7b1bc' },
-  dusk: { bg: 'linear-gradient(180deg,#2f3343 0%,#5d5867 50%,#8c7f84 100%)', fog: '#6f6a74' },
-  night: { bg: 'linear-gradient(180deg,#05070d 0%,#111725 60%,#20283a 100%)', fog: '#1a2030' },
-};
-const SKY_SNOW: Record<Phase, { bg: string; fog: string }> = {
-  day: { bg: 'linear-gradient(180deg,#a9bacb 0%,#d3dde8 50%,#f2f6fa 100%)', fog: '#e3eaf1' },
-  dusk: { bg: 'linear-gradient(180deg,#56607e 0%,#a58fa6 50%,#e9c9c0 100%)', fog: '#c9b2b5' },
-  night: { bg: 'linear-gradient(180deg,#0b1222 0%,#1d2a45 60%,#3a4a6a 100%)', fog: '#2c3a56' },
-};
+/** Giờ hiện tại dạng số thực (ví dụ 17.5 là 17h30). */
+const clockHour = () => { const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
+/** Giờ đích của các chế độ chọn tay. */
+const MODE_HOUR = { day: 12, dusk: 18, night: 23 } as const;
 
+const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 /** Chớp khi mưa: thỉnh thoảng lóe sáng hai nhịp. */
 function Lightning() {
   const l = useRef<THREE.AmbientLight>(null);
@@ -95,19 +76,6 @@ function AutoRotate({ controls, on }: { controls: React.RefObject<CameraControls
   return null;
 }
 
-/** Mặt trời hoặc mặt trăng ở xa, không bị sương mù che. */
-function SkyBody({ phase }: { phase: Phase }) {
-  const pos: [number, number, number] = phase === 'night' ? [-30, 26, -40] : phase === 'dusk' ? [-46, 9, -30] : [34, 34, -42];
-  const col = phase === 'night' ? '#f4f1dc' : phase === 'dusk' ? '#ffb15e' : '#fff6cf';
-  return (
-    <group position={pos}>
-      <mesh><sphereGeometry args={[phase === 'dusk' ? 4 : 3, 32, 24]} /><meshBasicMaterial color={col} fog={false} toneMapped={false} /></mesh>
-      <mesh><sphereGeometry args={[phase === 'dusk' ? 7 : 5.2, 32, 24]} /><meshBasicMaterial color={col} transparent opacity={0.18} fog={false} depthWrite={false} toneMapped={false} /></mesh>
-      {phase === 'night' && <mesh position={[0.9, 0.6, 1.2]}><sphereGeometry args={[0.7, 16, 12]} /><meshBasicMaterial color="#d9d5bd" fog={false} /></mesh>}
-    </group>
-  );
-}
-
 /** Ánh sáng phản chiếu nhẹ trên kính, kim loại (chỉ chế độ đẹp): môi trường dựng từ vài tấm sáng, không tải ảnh. */
 function Reflections({ phase }: { phase: Phase }) {
   const warm = phase === 'dusk' ? '#ffb07a' : phase === 'night' ? '#4a5fa8' : '#ffffff';
@@ -117,32 +85,6 @@ function Reflections({ phase }: { phase: Phase }) {
       <Lightformer form="rect" intensity={1} color="#bfe3ff" position={[-10, 3, 6]} rotation={[0, Math.PI / 2, 0]} scale={[10, 4, 1]} />
       <Lightformer form="ring" intensity={1.5} color={warm} position={[10, 5, -8]} scale={4} />
     </Environment>
-  );
-}
-
-/** dim: hệ số giảm sáng khi trời mưa, tuyết (mây che bớt nắng). */
-function Lights({ phase, shadows, dim = 1 }: { phase: Phase; shadows: boolean; dim?: number }) {
-  if (phase === 'dusk') {
-    return (
-      <>
-        <hemisphereLight args={['#ffcfb0', '#4a3f63', 0.85 * (0.5 + dim / 2)]} />
-        <directionalLight position={[-16, 7, 9]} intensity={2.1 * dim} color="#ffab6b" castShadow={shadows}
-          shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={6} shadow-camera-left={-16} shadow-camera-right={16} shadow-camera-top={16} shadow-camera-bottom={-16} />
-      </>
-    );
-  }
-  return phase === 'night' ? (
-    <>
-      <hemisphereLight args={['#3a4f88', '#14200f', 0.45]} />
-      <directionalLight position={[-8, 14, 6]} intensity={0.55} color="#a9bcff" castShadow={shadows}
-        shadow-mapSize={[1024, 1024]} shadow-camera-left={-14} shadow-camera-right={14} shadow-camera-top={14} shadow-camera-bottom={-14} />
-    </>
-  ) : (
-    <>
-      <hemisphereLight args={['#d8ecff', '#6a8f4a', 1.1 * (0.5 + dim / 2)]} />
-      <directionalLight position={[12, 18, 8]} intensity={2.4 * dim} color="#fff1d6" castShadow={shadows}
-        shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={5} shadow-camera-left={-16} shadow-camera-right={16} shadow-camera-top={16} shadow-camera-bottom={-16} />
-    </>
   );
 }
 
@@ -188,7 +130,7 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   const [quality, setQuality] = useState<Quality>(() => load('tptl-3d-quality', 'auto', ['auto', 'low', 'high'] as const));
   const [rotate, setRotate] = useState(() => load('tptl-3d-rotate', 'off', ['on', 'off'] as const) === 'on');
   const [hover, setHover] = useState<HoverInfo | null>(null);
-  const [clockPhase, setClockPhase] = useState<Phase>(phaseNow);
+  const [clock, setClock] = useState(clockHour);
   const controls = useRef<CameraControls | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
@@ -206,7 +148,7 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   useEffect(() => setSelected(null), [owner.name]);
 
   useEffect(() => {
-    const id = setInterval(() => { setClockPhase(phaseNow()); setSeasonal(seasonWeather()); }, 60_000);
+    const id = setInterval(() => { setClock(clockHour()); setSeasonal(seasonWeather()); }, 30_000);
     return () => clearInterval(id);
   }, []);
   useEffect(() => save('tptl-3d-time', time), [time]);
@@ -214,26 +156,33 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   useEffect(() => save('tptl-3d-weather', weatherMode), [weatherMode]);
   useEffect(() => save('tptl-3d-rotate', rotate ? 'on' : 'off'), [rotate]);
 
-  const phase: Phase = time === 'auto' ? clockPhase : time;
+  const hour = time === 'auto' ? clock : MODE_HOUR[time];
+  // Thời điểm nổi trội do chu kỳ ngày đêm báo về (đổi khi trời chuyển qua ngưỡng), dùng cho đèn, đom đóm, phản chiếu.
+  const [phase, setPhase] = useState<Phase>(() => dominantPhase(hour));
   const night = phase === 'night';
+  const layers = useRef<Record<string, HTMLDivElement | null>>({});
   const high = quality === 'high' || (quality === 'auto' && !lowEnd());
   const go = (v: View) => {
     const el = box.current;
     controls.current?.setLookAt(...viewFor(v, el ? el.clientWidth / Math.max(1, el.clientHeight) : 1.6), true);
   };
   const weather: Weather = weatherMode === 'auto' ? seasonal : weatherMode;
-  const sky = (weather === 'rain' ? SKY_RAIN : weather === 'snow' ? SKY_SNOW : SKY)[phase];
+  // Lớp trời hiện lúc mở; sau đó chỉ chu kỳ ngày đêm chỉnh độ mờ (React không đặt lại, tránh chớp khi đổi chế độ).
+  const [firstSky] = useState(() => `${weather}-${dominantPhase(hour)}`);
 
   return (
-    <div ref={box} className={`relative w-full overflow-hidden transition-[background] duration-700 ${fs ? 'h-screen' : `rounded-2xl border border-line ${height}`}`} style={{ background: sky.bg }}>
+    <div ref={box} className={`relative w-full overflow-hidden bg-[#9fb7cc] ${fs ? 'h-screen' : `rounded-2xl border border-line ${height}`}`}>
+      {/* Các lớp nền trời chồng nhau; chu kỳ ngày đêm chỉnh độ mờ từng lớp mỗi khung hình. */}
+      {WEATHERS.flatMap((k) => PHASES.map((p) => (
+        <div key={k + p} ref={(el) => { layers.current[`${k}-${p}`] = el; }} aria-hidden="true" className="absolute inset-0"
+          style={{ background: SKY[k][p].bg, opacity: `${k}-${p}` === firstSky ? 1 : 0 }} />
+      )))}
       <Canvas shadows={high ? 'percentage' : false} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 220 }}
         gl={{ antialias: true, alpha: true }} onPointerMissed={() => { setHover(null); setSelected(null); }}>
-        <fog attach="fog" args={[sky.fog, weather === 'clear' ? 40 : 26, weather === 'clear' ? 95 : 70]} />
-        <Lights phase={phase} shadows={high} dim={weather === 'rain' ? 0.45 : weather === 'snow' ? 0.75 : 1} />
-        {(weather === 'clear' || (weather === 'snow' && phase === 'night')) && <SkyBody phase={phase} />}
+        <fog attach="fog" args={[SKY[weather][phase].fog, 40, 95]} />
+        <DayCycle hour={hour} weather={weather} shadows={high} layers={layers} onPhase={setPhase} />
         {weather === 'rain' && <Lightning />}
         {high && <Reflections phase={phase} />}
-        {phase !== 'day' && weather === 'clear' && <Stars radius={70} depth={25} count={phase === 'night' ? 2200 : 500} factor={3.5} fade speed={0.6} />}
         <CityScene owner={owner} night={night} phase={phase} weather={weather} detail={high} onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
         <CameraControls ref={controls} makeDefault minDistance={6} maxDistance={48} minPolarAngle={0.15} maxPolarAngle={1.35} smoothTime={0.35} />
         <AutoRotate controls={controls} on={rotate && !onPick} />
