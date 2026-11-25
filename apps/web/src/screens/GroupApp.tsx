@@ -8,6 +8,7 @@ import { Layout } from '../components/Layout';
 import { api, ApiError, errorMessage } from '../lib/api';
 import { qk, useGroup, useGroupMembership } from '../lib/queries';
 import { Admin } from './Admin';
+import { DailyTasks } from './DailyTasks';
 import { FocusFailed } from './FocusFailed';
 import { FocusRun, type FailInfo, type RunMeasures } from './FocusRun';
 import { FocusSetup } from './FocusSetup';
@@ -19,7 +20,7 @@ import { Ranking } from './Ranking';
 import { Reward } from './Reward';
 import { Town } from './Town';
 
-export type Tab = 'town' | 'focus' | 'mine' | 'group' | 'rank' | 'admin';
+export type Tab = 'town' | 'focus' | 'tasks' | 'mine' | 'group' | 'rank' | 'admin';
 /** Luồng phiên tập trung: đang chạy → xác nhận → nhận thưởng, hoặc đang chạy → thất bại. */
 export type Flow =
   | { step: 'run'; s: ActiveSession }
@@ -27,7 +28,7 @@ export type Flow =
   | { step: 'reward'; result: SessionResult | null }
   | { step: 'failed'; info: FailInfo };
 
-const TAB_ICON: Record<Tab, IconName> = { town: 'build', focus: 'timer', mine: 'chart', group: 'pop', rank: 'group', admin: 'gear' };
+const TAB_ICON: Record<Tab, IconName> = { town: 'build', focus: 'timer', tasks: 'ok', mine: 'chart', group: 'pop', rank: 'group', admin: 'gear' };
 
 /** Thanh tab có vạch chọn trượt theo tab đang mở. Trên điện thoại (CSS .tabnav) thanh nằm cố định ở đáy màn hình. */
 function TabNav({ tabs, current, go }: { tabs: [Tab, string][]; current: Tab; go: (t: Tab) => void }) {
@@ -118,7 +119,7 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   }
   if (!d) return <Layout who={who}><Loading text="Đang tải dữ liệu nhóm…" lines={4} /></Layout>;
 
-  const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['mine', 'Của tôi'], ['group', 'Nhóm'], ['rank', 'Xếp hạng']];
+  const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['tasks', 'Nhiệm vụ'], ['mine', 'Của tôi'], ['group', 'Nhóm'], ['rank', 'Xếp hạng']];
   if (d.canManage) tabs.push(['admin', 'Quản trị']);
   const current: Tab = inFlow || flow?.step === 'failed' ? 'focus' : flow?.step === 'reward' ? 'town' : tab;
   function go(t: Tab) {
@@ -136,6 +137,9 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
     body = <FocusVerify me={me} s={flow.s} m={flow.m} onDone={async (result) => { await refresh(); setFlow({ step: 'reward', result }); }} onHonest={async () => { await refresh(); setFlow(null); setTab('town'); }} />;
   } else if (flow?.step === 'failed') {
     body = <FocusFailed info={flow.info} onRetry={() => { setFlow(null); setTab('focus'); }} onTown={() => { setFlow(null); setTab('town'); }} />;
+  } else if (current === 'tasks') {
+    // Nhiệm vụ trong ngày gắn với tài khoản nên mở được cả khi chưa tạo nhà trong nhóm.
+    body = <DailyTasks />;
   } else if (!player && current !== 'group' && current !== 'rank' && !(current === 'admin' && d.canManage)) {
     // Chưa có nhà thì tạo nhà trước; riêng bảng nhóm và tab Quản trị vẫn mở được (trưởng nhóm, quản trị viên chưa chơi).
     body = <Onboard gid={gid} defaultName={me.name} onCreated={() => setTab('town')} />;

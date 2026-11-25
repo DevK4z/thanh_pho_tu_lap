@@ -153,3 +153,35 @@ export function checkCount(mode: Mode, plannedSec: number): number {
 export function verifyCount(mode: Mode): number {
   return mode === 'screen' ? 1 : 2;
 }
+
+/* ---------- Nhiệm vụ trong ngày (việc đột xuất, không tính vào thành phố hay điểm nhóm) ---------- */
+export type TaskCategory = 'work' | 'personal' | 'study' | 'health' | 'other';
+export const TASK_CATEGORIES: Record<TaskCategory, string> = { work: 'Công việc', personal: 'Cá nhân', study: 'Học tập', health: 'Sức khỏe', other: 'Khác' };
+export const TASK_CATEGORY_KEYS: TaskCategory[] = ['work', 'personal', 'study', 'health', 'other'];
+export type TaskPriority = 'high' | 'medium' | 'low';
+export const TASK_PRIORITIES: Record<TaskPriority, string> = { high: 'Cao', medium: 'Trung bình', low: 'Thấp' };
+export const TASK_PRIORITY_KEYS: TaskPriority[] = ['high', 'medium', 'low'];
+/** title, note: số ký tự; perDay: số việc tối đa trong một ngày; statsDays: số ngày tối đa của một lần xem thống kê. */
+export const TASK_LIMITS = { title: 120, note: 300, perDay: 40, statsDays: 62 };
+
+/** Linh vật lớn dần theo tỷ lệ việc đã xong trong ngày (6 giai đoạn, 0 đến 5). */
+export type PetTheme = 'meo' | 'cay' | 'ga' | 'hu_sao';
+export const PET_THEMES: Record<PetTheme, string> = { meo: 'Mèo tím', cay: 'Cây anh đào', ga: 'Gà con', hu_sao: 'Hũ sao' };
+export const PET_THEME_KEYS: PetTheme[] = ['meo', 'cay', 'ga', 'hu_sao'];
+
+/** Giai đoạn linh vật: 0 khi chưa xong việc nào, 5 khi xong hết; ở giữa chia theo các mốc 25%, 50%, 75%. */
+export function petStage(done: number, total: number): number {
+  if (!total || done <= 0) return 0;
+  if (done >= total) return 5;
+  const p = done / total;
+  return p < 0.25 ? 1 : p < 0.5 ? 2 : p < 0.75 ? 3 : 4;
+}
+/** Lời nhắn theo giai đoạn. */
+export const PET_MESSAGES = [
+  'Bắt đầu việc đầu tiên nào!',
+  'Khởi động tốt, giữ nhịp nhé!',
+  'Đang vào guồng rồi!',
+  'Đã đi quá nửa chặng đường!',
+  'Sắp xong rồi, cố lên!',
+  'Hoàn thành tất cả. Tuyệt vời!',
+];

@@ -17,6 +17,7 @@ import { rankingRoutes } from './routes/ranking';
 import { evidenceRoutes } from './routes/evidence';
 import { fieldRoutes } from './routes/field';
 import { resultRoutes } from './routes/results';
+import { taskRoutes } from './routes/tasks';
 import { geminiAI, type EvidenceAI } from './ai';
 import type { Me } from '@tptl/shared';
 
@@ -118,6 +119,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     evidenceRoutes(api, ctx);
     fieldRoutes(api, ctx);
     resultRoutes(api, ctx);
+    taskRoutes(api, ctx);
   }, { prefix: '/api' });
 
   return app;
