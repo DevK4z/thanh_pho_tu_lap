@@ -4,6 +4,7 @@ import ReactThreeTestRenderer from '@react-three/test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { HKEYS, ITEMS, type PlotItem } from '@tptl/shared';
 import { CityScene } from './CityScene';
+import { seasonWeather } from './effects';
 
 const allItems: PlotItem[] = ITEMS.map((it, i) => ({ s: i * 2, i: it.id, t: it.t, g: (i % 3 === 0 ? 1 : 0) as 0 | 1 }));
 const owner = (lvMin: number, style = HKEYS[0], plot = allItems) => ({ name: 'An', style, totalFocusMin: lvMin, plot });
@@ -80,6 +81,28 @@ describe('CityScene', () => {
     expect(full).toBeGreaterThan(light + 50);
     expect(night).toBeGreaterThan(light + 50);
   }, 30_000);
+
+  it('mưa và tuyết: hạt rơi liên tục, tuyết phủ mặt đảo, chế độ nhẹ vẫn có mưa tuyết', async () => {
+    for (const weather of ['rain', 'snow'] as const) {
+      for (const detail of [true, false]) {
+        const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(240)} night={false} weather={weather} detail={detail} />);
+        await r.advanceFrames(40, 0.05);
+        const inst = r.scene.findAll((x) => x.type === 'InstancedMesh').map((x) => x.instance as unknown as { count: number });
+        expect(inst.some((m) => m.count === (detail ? (weather === 'rain' ? 700 : 600) : 220))).toBe(true);
+        await r.unmount();
+      }
+    }
+  }, 30_000);
+
+  it('thời tiết theo mùa: tháng 12–2 có thể tuyết nhưng không mưa, mùa mưa không có tuyết, cố định trong ngày', () => {
+    const days = (m: number) => Array.from({ length: 28 }, (_, d) => seasonWeather(new Date(2026, m, d + 1, 9)));
+    const winter = [11, 0, 1].flatMap(days), rainy = [5, 6, 7].flatMap(days);
+    expect(winter).toContain('snow');
+    expect(winter).not.toContain('rain');
+    expect(rainy).toContain('rain');
+    expect(rainy).not.toContain('snow');
+    expect(seasonWeather(new Date(2026, 6, 10, 8))).toBe(seasonWeather(new Date(2026, 6, 10, 22)));
+  });
 
   it('không có onPick thì không có lô bấm được', async () => {
     const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(90)} night={false} />);

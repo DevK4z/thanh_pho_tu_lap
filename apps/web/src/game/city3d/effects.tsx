@@ -144,8 +144,8 @@ export function Boat({ a, b, z }: { a: number; b: number; z: number }) {
   );
 }
 
-/** Mây trôi chậm trên trời, đi hết thì quay lại từ đầu. */
-export function Clouds({ dim }: { dim: boolean }) {
+/** Mây trôi chậm trên trời, đi hết thì quay lại từ đầu. storm: mây xám dày khi mưa, tuyết. */
+export function Clouds({ dim, storm }: { dim: boolean; storm?: boolean }) {
   const g = useRef<THREE.Group>(null);
   const clouds = useMemo(() => Array.from({ length: 6 }, (_, i) => ({
     x: -26 + i * 9 + rnd(i) * 4, y: 7.5 + rnd(i + 9) * 3, z: -12 + rnd(i + 20) * 22, s: 0.8 + rnd(i + 31) * 0.7, v: 0.25 + rnd(i + 40) * 0.25,
@@ -156,13 +156,13 @@ export function Clouds({ dim }: { dim: boolean }) {
       if (c.position.x > 30) c.position.x = -30;
     });
   });
-  const col = dim ? '#8090b8' : '#ffffff';
+  const col = storm ? (dim ? '#4a5266' : '#8a94a3') : dim ? '#8090b8' : '#ffffff';
   return (
-    <group ref={g}>
+    <group ref={g} scale={storm ? [1.35, 1.1, 1.35] : 1}>
       {clouds.map((c, i) => (
         <group key={i} position={[c.x, c.y, c.z]} scale={[c.s * 1.4, c.s * 0.75, c.s]}>
           {[[0, 0, 0, 1], [0.9, -0.15, 0.1, 0.75], [-0.9, -0.2, -0.1, 0.7], [0.35, 0.35, -0.2, 0.7], [-0.4, 0.25, 0.25, 0.6]].map(([x, y, z, r], k) => (
-            <mesh key={k} position={[x, y, z]}><sphereGeometry args={[r, 12, 10]} /><meshStandardMaterial color={col} roughness={1} transparent opacity={dim ? 0.55 : 0.95} /></mesh>
+            <mesh key={k} position={[x, y, z]}><sphereGeometry args={[r, 12, 10]} /><meshStandardMaterial color={col} roughness={1} transparent opacity={storm ? 0.97 : dim ? 0.55 : 0.95} /></mesh>
           ))}
         </group>
       ))}
@@ -322,6 +322,92 @@ export function Beacon({ p }: { p: V3 }) {
     <mesh position={p}>
       <sphereGeometry args={[0.06, 12, 10]} />
       <meshStandardMaterial ref={m} color={C.red} emissive={C.red} emissiveIntensity={1.5} />
+    </mesh>
+  );
+}
+
+/* ---------------- Thời tiết ---------------- */
+export type Weather = 'clear' | 'rain' | 'snow';
+
+/** Thời tiết theo mùa, cố định trong một ngày: tháng 12–2 có ngày tuyết, mùa mưa tháng 5–10 có ngày mưa, các tháng khác thỉnh thoảng mưa. */
+export function seasonWeather(d = new Date()): Weather {
+  const m = d.getMonth();
+  const k = Math.sin((d.getFullYear() * 400 + m * 31 + d.getDate()) * 12.9898) * 43758.5453;
+  const r = k - Math.floor(k);
+  if (m === 11 || m <= 1) return r < 0.5 ? 'snow' : 'clear';
+  if (m >= 4 && m <= 9) return r < 0.45 ? 'rain' : 'clear';
+  return r < 0.15 ? 'rain' : 'clear';
+}
+
+/** Mưa hoặc tuyết rơi trong một khối quanh đảo (instancing: một lần vẽ cho cả trăm hạt).
+    Hạt rơi tới mặt đất thì quay lại đỉnh, nên mưa tuyết rơi liên tục. */
+export function Precipitation({ kind, count, half }: { kind: 'rain' | 'snow'; count: number; half: number }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const TOP = 14;
+  const drops = useMemo(() => Array.from({ length: count }, (_, i) => ({
+    x: (rnd(i) * 2 - 1) * half, z: (rnd(i + 5000) * 2 - 1) * half, y: rnd(i + 9000) * TOP,
+    v: kind === 'rain' ? 9 + rnd(i + 3) * 4 : 0.7 + rnd(i + 3) * 0.6, ph: rnd(i + 7) * 6.28,
+  })), [count, half, kind]);
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  // Mưa rơi hơi xiên theo gió; tuyết không cần xoay.
+  const q = useMemo(() => (kind === 'rain' ? new THREE.Quaternion().setFromEuler(new THREE.Euler(0.12, 0, 0.08)) : new THREE.Quaternion()), [kind]);
+  const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
+  const v = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ clock }, dt) => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const t = clock.getElapsedTime(), d = Math.min(dt, 0.1);
+    drops.forEach((p, i) => {
+      p.y -= p.v * d;
+      if (p.y < 0) p.y += TOP;
+      const sway = kind === 'snow' ? Math.sin(t * 0.8 + p.ph) * 0.35 : p.y * 0.08;
+      m.compose(v.set(p.x + sway, p.y, p.z + (kind === 'snow' ? Math.cos(t * 0.6 + p.ph) * 0.25 : 0)), q, one);
+      mesh.setMatrixAt(i, m);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, count]} frustumCulled={false}>
+      {kind === 'rain' ? <boxGeometry args={[0.015, 0.42, 0.015]} /> : <octahedronGeometry args={[0.055, 0]} />}
+      <meshBasicMaterial color={kind === 'rain' ? '#cfe3f5' : '#ffffff'} transparent opacity={kind === 'rain' ? 0.55 : 0.95} depthWrite={false} />
+    </instancedMesh>
+  );
+}
+
+/** Vòng nước bắn lên khi mưa rơi xuống mặt sông và đường. */
+export function RainRipples({ spots }: { spots: [number, number][] }) {
+  const refs = useRef<(THREE.Mesh | null)[]>([]);
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    refs.current.forEach((r, i) => {
+      if (!r) return;
+      const u = (t * 1.4 + rnd(i) ) % 1;
+      if (u < 0.05) { const [x, z] = spots[Math.floor(rnd(i + Math.floor(t)) * spots.length) % spots.length]; r.position.set(x + (rnd(i + t) - 0.5) * 1.6, 0.08, z + (rnd(i * 3 + t) - 0.5) * 1.6); }
+      r.scale.setScalar(0.2 + u * 1.2);
+      (r.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - u);
+    });
+  });
+  return <>{Array.from({ length: 18 }, (_, i) => (
+    <mesh key={i} ref={(r) => { refs.current[i] = r; }} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.08, 0.11, 16]} />
+      <meshBasicMaterial color="#e6f2ff" transparent opacity={0.5} depthWrite={false} />
+    </mesh>
+  ))}</>;
+}
+
+/** Lớp tuyết phủ trắng dần trên mặt đảo (dày lên trong vài chục giây đầu). */
+export function SnowCover({ size }: { size: number }) {
+  const m = useRef<THREE.MeshStandardMaterial>(null);
+  const k = useRef(0);
+  useFrame((_, dt) => {
+    if (!m.current || k.current >= 1) return;
+    k.current = Math.min(1, k.current + Math.min(dt, 0.1) / 25);
+    m.current.opacity = 0.15 + 0.5 * k.current;
+  });
+  return (
+    <mesh position={[0, 0.095, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[size - 0.2, size - 0.2]} />
+      <meshStandardMaterial ref={m} color="#ffffff" roughness={0.9} transparent opacity={0.15} depthWrite={false} />
     </mesh>
   );
 }
