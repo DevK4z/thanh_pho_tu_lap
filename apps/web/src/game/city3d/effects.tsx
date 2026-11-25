@@ -109,12 +109,14 @@ export function Glints({ segs, y = 0.075 }: { segs: [number, number, number, num
       const side = (rnd(i + 50) - 0.5) * 0.9;
       const horiz = Math.abs(x1 - x0) > Math.abs(z1 - z0);
       m.position.set(x0 + (x1 - x0) * u + (horiz ? 0 : side), y, z0 + (z1 - z0) * u + (horiz ? side : 0));
-      (m.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.6 * Math.max(0, Math.sin(t * 3 + i * 1.3));
+      // Ban đêm mặt nước tối nên đốm sáng mờ đi.
+      const dark = glow.value >= 0 ? glow.night : 0;
+      (m.material as THREE.MeshBasicMaterial).opacity = (1 - 0.75 * dark) * (0.2 + 0.55 * Math.max(0, Math.sin(t * 3 + i * 1.3)));
     });
   });
   return <>{Array.from({ length: n }, (_, i) => (
-    <mesh key={i} ref={(m) => { refs.current[i] = m; }} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
-      <planeGeometry args={[0.12, 0.12]} />
+    <mesh key={i} ref={(m) => { refs.current[i] = m; }} rotation={[-Math.PI / 2, 0, 0]}>
+      <circleGeometry args={[0.05, 12]} />
       <meshBasicMaterial color="#ffffff" transparent opacity={0.5} depthWrite={false} />
     </mesh>
   ))}</>;
@@ -148,7 +150,8 @@ export function Boat({ a, b, z }: { a: number; b: number; z: number }) {
 export function Clouds({ dim, storm }: { dim: boolean; storm?: boolean }) {
   const g = useRef<THREE.Group>(null);
   const clouds = useMemo(() => Array.from({ length: 6 }, (_, i) => ({
-    x: -26 + i * 9 + rnd(i) * 4, y: 7.5 + rnd(i + 9) * 3, z: -12 + rnd(i + 20) * 22, s: 0.8 + rnd(i + 31) * 0.7, v: 0.25 + rnd(i + 40) * 0.25,
+    // Mây ở phía sau đảo và cao, để không che giữa camera và thành phố.
+    x: -26 + i * 9 + rnd(i) * 4, y: 10 + rnd(i + 9) * 4, z: -30 + rnd(i + 20) * 12, s: 0.8 + rnd(i + 31) * 0.7, v: 0.25 + rnd(i + 40) * 0.25,
   })), []);
   useFrame((_, dt) => {
     g.current?.children.forEach((c, i) => {

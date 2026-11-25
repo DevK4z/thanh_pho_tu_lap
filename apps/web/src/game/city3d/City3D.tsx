@@ -1,6 +1,6 @@
 /* Thành phố 3D: Canvas, ánh sáng ngày/đêm, camera xoay/phóng/kéo, thanh công cụ.
    Điều khiển: kéo chuột trái để xoay, cuộn để phóng to, kéo chuột phải (hoặc hai ngón) để di chuyển. */
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CameraControls, Environment, Lightformer } from '@react-three/drei';
 import type * as THREE from 'three';
@@ -8,7 +8,7 @@ import { HST, ITEMS, POP, TIERS, levelOf } from '@tptl/shared';
 import type { CityOwner } from '../iso';
 import { CityScene, cellPos, type HoverInfo, type Selected } from './CityScene';
 import { seasonWeather, type Weather } from './effects';
-import { DayCycle, PHASES, SKY, WEATHERS, dominantPhase, type Phase } from './daycycle';
+import { DayCycle, SKY, dominantPhase, type Phase } from './daycycle';
 
 type TimeMode = 'auto' | 'day' | 'dusk' | 'night';
 type WeatherMode = 'auto' | Weather;
@@ -43,6 +43,9 @@ function Lightning() {
   return <ambientLight ref={l} color="#dfe8ff" intensity={0} />;
 }
 const lowEnd = () => typeof matchMedia !== 'undefined' && (matchMedia('(pointer: coarse)').matches || (navigator.hardwareConcurrency ?? 8) <= 4);
+
+/** Hậu kỳ (bloom, ambient occlusion) tải riêng, chỉ khi chọn chất lượng Đẹp. */
+const PostFX = lazy(() => import('./PostFX'));
 
 const [hx, hz] = cellPos(1, 1);
 const VIEWS: Record<View, [number, number, number, number, number, number]> = {
@@ -168,33 +171,26 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   // Thời điểm nổi trội do chu kỳ ngày đêm báo về (đổi khi trời chuyển qua ngưỡng), dùng cho đèn, đom đóm, phản chiếu.
   const [phase, setPhase] = useState<Phase>(() => dominantPhase(hour));
   const night = phase === 'night';
-  const layers = useRef<Record<string, HTMLDivElement | null>>({});
   const high = quality === 'high' || (quality === 'auto' && !lowEnd());
   const go = (v: View) => {
     const el = box.current;
     controls.current?.setLookAt(...viewFor(v, el ? el.clientWidth / Math.max(1, el.clientHeight) : 1.6), true);
   };
   const weather: Weather = weatherMode === 'auto' ? seasonal : weatherMode;
-  // Lớp trời hiện lúc mở; sau đó chỉ chu kỳ ngày đêm chỉnh độ mờ (React không đặt lại, tránh chớp khi đổi chế độ).
-  const [firstSky] = useState(() => `${weather}-${dominantPhase(hour)}`);
 
   return (
     <div ref={box} className={`relative w-full overflow-hidden bg-[#9fb7cc] ${fs ? 'h-screen' : `rounded-2xl border border-line ${height}`}`}>
-      {/* Các lớp nền trời chồng nhau; chu kỳ ngày đêm chỉnh độ mờ từng lớp mỗi khung hình. */}
-      {WEATHERS.flatMap((k) => PHASES.map((p) => (
-        <div key={k + p} ref={(el) => { layers.current[`${k}-${p}`] = el; }} aria-hidden="true" className="absolute inset-0"
-          style={{ background: SKY[k][p].bg, opacity: `${k}-${p}` === firstSky ? 1 : 0 }} />
-      )))}
-      <Canvas shadows={high ? 'percentage' : false} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 220 }}
-        gl={{ antialias: true, alpha: true }} onPointerMissed={() => { setHover(null); setSelected(null); }}>
+      <Canvas shadows={high ? 'percentage' : false} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 400 }}
+        gl={{ antialias: !high, alpha: false }} onPointerMissed={() => { setHover(null); setSelected(null); }}>
         <fog attach="fog" args={[SKY[weather][phase].fog, 40, 95]} />
-        <DayCycle hour={hour} weather={weather} shadows={high} layers={layers} onPhase={setPhase} />
+        <DayCycle hour={hour} weather={weather} shadows={high} onPhase={setPhase} />
         {weather === 'rain' && <Lightning />}
         {high && <Reflections phase={phase} />}
         <CityScene owner={owner} night={night} phase={phase} weather={weather} detail={high} cycle onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
         <CameraControls ref={controls} makeDefault minDistance={6} maxDistance={48} minPolarAngle={0.15} maxPolarAngle={1.35} smoothTime={0.35} />
         <AutoRotate controls={controls} on={rotate && !onPick} />
         <InitialView controls={controls} />
+        {high && <Suspense fallback={null}><PostFX /></Suspense>}
       </Canvas>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 p-2.5">
