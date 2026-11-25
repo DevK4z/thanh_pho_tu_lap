@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Button, Card, Loading, Muted } from './components/ui';
 import { Who } from './components/Who';
-import { errorMessage } from './lib/api';
+import { errorMessage, getToken } from './lib/api';
 import { useMe } from './lib/queries';
 import { useServerReady, type ServerState } from './lib/wake';
 import { AdminReport } from './screens/AdminReport';
@@ -51,16 +51,21 @@ export function App() {
     window.addEventListener('hashchange', f);
     return () => window.removeEventListener('hashchange', f);
   }, []);
-  // Có dữ liệu lần trước thì vào ngay; chưa có (lần đầu trên máy này) mới phải chờ máy chủ.
-  if (server.state !== 'ready' && !me.data) return <Layout><WakeCard state={server.state} onRetry={server.retry} /></Layout>;
+  // Chưa đăng nhập thì hiện ngay trang đăng nhập (đăng nhập sẽ tự chờ máy chủ). Đã đăng nhập: có dữ liệu lần trước thì vào ngay,
+  // chưa có (lần đầu trên máy này) mới phải chờ máy chủ.
+  const signedOut = !getToken();
+  if (server.state !== 'ready' && !me.data && !signedOut) return <Layout><WakeCard state={server.state} onRetry={server.retry} /></Layout>;
   const offline = server.state !== 'ready' && (
     <div role="status" className="fixed top-2 left-1/2 z-[80] -translate-x-1/2 rounded-full bg-[#1b3a33] px-4 py-1.5 text-[13px] font-semibold text-white shadow-lg">
-      {server.state === 'down' ? 'Chưa kết nối được máy chủ. Đang hiện dữ liệu lần trước.' : 'Đang kết nối máy chủ… dữ liệu sẽ tự cập nhật.'}
+      {signedOut
+        ? (server.state === 'down' ? 'Chưa kết nối được máy chủ. Kiểm tra mạng rồi tải lại trang.' : 'Đang kết nối máy chủ… bạn cứ đăng nhập, trang tự vào khi sẵn sàng.')
+        : (server.state === 'down' ? 'Chưa kết nối được máy chủ. Đang hiện dữ liệu lần trước.' : 'Đang kết nối máy chủ… dữ liệu sẽ tự cập nhật.')}
     </div>
   );
   return <>{offline}{route()}</>;
 
   function route() {
+    if (signedOut && !me.data) return <Layout><Login /></Layout>;
     if (me.isPending) return <Layout><Loading text="Đang mở thành phố…" /></Layout>;
     // Lỗi mạng mà vẫn có dữ liệu lần trước thì cứ hiện dữ liệu đó (thanh trạng thái phía trên đã báo).
     if (me.isError && !me.data) {
