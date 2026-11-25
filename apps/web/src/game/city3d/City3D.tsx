@@ -58,14 +58,22 @@ function viewFor(v: View, aspect: number): [number, number, number, number, numb
   return v === 'overview' ? [a * k, b * k, c * k, d, e, f] : [a, b * k, c, d, e, f];
 }
 
-/** Đặt góc nhìn tổng quan khớp tỉ lệ khung ngay khi mở. */
+/** Mở thành phố: camera bắt đầu từ trên cao, xa và lệch góc rồi bay vòng xuống góc nhìn tổng quan (khoảng 2 giây).
+    Người dùng giảm chuyển động thì đặt thẳng góc nhìn. */
 function InitialView({ controls }: { controls: React.RefObject<CameraControls | null> }) {
   const size = useThree((s) => s.size);
   const done = useRef(false);
   useFrame(() => {
-    if (done.current || !controls.current || !size.width) return;
+    const c = controls.current;
+    if (done.current || !c || !size.width) return;
     done.current = true;
-    controls.current.setLookAt(...viewFor('overview', size.width / size.height), false);
+    const [x, y, z, tx, ty, tz] = viewFor('overview', size.width / size.height);
+    const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (still) { c.setLookAt(x, y, z, tx, ty, tz, false); return; }
+    c.setLookAt(-x * 1.6, y * 2.4, z * 1.9, tx, ty, tz, false);
+    const smooth = c.smoothTime;
+    c.smoothTime = 0.9;
+    c.setLookAt(x, y, z, tx, ty, tz, true).then(() => { c.smoothTime = smooth; });
   });
   return null;
 }
@@ -183,7 +191,7 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
         <DayCycle hour={hour} weather={weather} shadows={high} layers={layers} onPhase={setPhase} />
         {weather === 'rain' && <Lightning />}
         {high && <Reflections phase={phase} />}
-        <CityScene owner={owner} night={night} phase={phase} weather={weather} detail={high} onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
+        <CityScene owner={owner} night={night} phase={phase} weather={weather} detail={high} cycle onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
         <CameraControls ref={controls} makeDefault minDistance={6} maxDistance={48} minPolarAngle={0.15} maxPolarAngle={1.35} smoothTime={0.35} />
         <AutoRotate controls={controls} on={rotate && !onPick} />
         <InitialView controls={controls} />

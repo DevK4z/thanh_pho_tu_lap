@@ -7,8 +7,8 @@ import { GN, ITEMS, SLOTS, levelOf, type ItemId, type PlotItem } from '@tptl/sha
 import type * as THREE from 'three';
 import type { CityOwner } from '../iso';
 import { EmptyLot, HouseModel, ITEM_HEIGHT, ItemModel } from './models';
-import { Box, C, GlowSync, Lamp, NightCtx, Pine, StarShape, Tree, waterMat } from './parts';
-import { Birds, Boat, Clouds, Fireflies, FloatingRocks, Glints, GrassField, IslandRock, Precipitation, RainRipples, Smoke, SnowCover, Waterfall, type Weather } from './effects';
+import { Box, C, GlowSync, Lamp, NightCtx, Pine, StarShape, Tree, bulbMat, tailMat, waterMat } from './parts';
+import { Birds, Boat, Clouds, Fireflies, FloatingRocks, Glints, GoldSparkles, GrassField, IslandRock, Precipitation, RainRipples, Smoke, SnowCover, Walkers, WaterWaves, Waterfall, type Weather } from './effects';
 
 export const CELL = 2;
 /** Tâm lô (hàng r, cột c) trong toạ độ thế giới. */
@@ -32,6 +32,8 @@ function grassPoints(): [number, number][] {
 }
 /** Chỗ mưa rơi tạo vòng nước: mặt sông và giữa đường. */
 const RIPPLE_SPOTS: [number, number][] = [[(RIVER[0] + RIVER[1]) / 2, -6], [(RIVER[0] + RIVER[1]) / 2, 4], [-5, (RIVER[0] + RIVER[1]) / 2], [3, (RIVER[0] + RIVER[1]) / 2], [-4, 0], [5, 0], [0, -5], [0, 3]];
+/** Vỉa hè hai bên hai trục đường: [trục đi, toạ độ cố định]. */
+const WALK_LANES: ['x' | 'z', number][] = [['x', CELL / 2 + 0.12], ['z', CELL / 2 + 0.12], ['x', -(CELL / 2 + 0.12)], ['z', -(CELL / 2 + 0.12)]];
 const FIREFLY_SPOTS: [number, number][] = [[-5, -8.6], [3, -8.8], [-8.6, -4.5], [-8.8, 4], [6.5, -8.2], [-8.4, 7.5], [-4, 4], [4.5, 4.5]];
 
 export interface HoverInfo { label: string; slot?: number }
@@ -154,6 +156,12 @@ function Cars({ n }: { n: number }) {
         <group key={i} ref={(g) => { refs.current[i] = g; }}>
           <Box p={[0, 0.07, 0]} s={[0.6, 0.18, 0.3]} r={0.07} c={CAR_COLORS[i % CAR_COLORS.length]} />
           <Box p={[-0.04, 0.22, 0]} s={[0.32, 0.13, 0.26]} r={0.05} c={C.glass} rough={0.2} />
+          {/* đèn pha (sáng dần lúc tối), đèn hậu đỏ */}
+          {[-0.09, 0.09].map((z) => <mesh key={'h' + z} position={[0.3, 0.09, z]} material={bulbMat}><boxGeometry args={[0.02, 0.05, 0.06]} /></mesh>)}
+          {[-0.1, 0.1].map((z) => <mesh key={'t' + z} position={[-0.3, 0.1, z]} material={tailMat}><boxGeometry args={[0.02, 0.04, 0.05]} /></mesh>)}
+          {[[-0.18, -0.15], [-0.18, 0.15], [0.18, -0.15], [0.18, 0.15]].map(([x, z], k) => (
+            <mesh key={'w' + k} position={[x, 0.0, z]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.06, 0.06, 0.04, 10]} /><meshStandardMaterial color="#222" roughness={0.9} /></mesh>
+          ))}
         </group>
       ))}
     </>
@@ -169,7 +177,7 @@ function Spinner({ y }: { y: number }) {
     g.current.rotation.y = t * 1.6;
     g.current.position.y = y + Math.sin(t * 2) * 0.08;
   });
-  return <group ref={g} position={[0, y, 0]}><StarShape /></group>;
+  return <><group ref={g} position={[0, y, 0]}><StarShape /></group><GoldSparkles y={y} /></>;
 }
 
 const easeOutBack = (t: number) => 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
@@ -256,6 +264,25 @@ function SlotTile({ i, occupied, hot, onOver, onOut, onPick }: {
   );
 }
 
+/** Công trình trên một lô: rê chuột vào thì nhấc lên và phóng nhẹ (có nảy), rời chuột thì hạ xuống. */
+function ItemSlot({ name, hot, children, ...ev }: { name: string; hot: boolean; children: ReactNode } & Pick<React.ComponentProps<'group'>, 'onPointerOver' | 'onPointerOut' | 'onClick'>) {
+  const g = useRef<THREE.Group>(null);
+  const vel = useRef(0);
+  useFrame((_, dt) => {
+    if (!g.current) return;
+    const d = Math.min(dt, 0.05);
+    // Lò xo tắt dần: kéo độ nhấc về đích, có chút nảy.
+    const target = hot ? 1 : 0;
+    const k = g.current.userData.lift ?? 0;
+    vel.current += ((target - k) * 120 - vel.current * 14) * d;
+    const next = k + vel.current * d;
+    g.current.userData.lift = next;
+    g.current.position.y = next * 0.18;
+    g.current.scale.setScalar(1 + next * 0.06);
+  });
+  return <group ref={g} name={name} {...ev}>{children}</group>;
+}
+
 export interface CitySceneProps {
   owner: CityOwner;
   night: boolean;
@@ -271,9 +298,11 @@ export interface CitySceneProps {
   phase?: 'day' | 'dusk' | 'night';
   /** Thời tiết: nắng, mưa hoặc tuyết. Mặc định nắng. */
   weather?: Weather;
+  /** Có chu kỳ ngày đêm chạy liên tục: chim, đom đóm luôn dựng và tự hiện/ẩn dần theo trời. */
+  cycle?: boolean;
 }
 
-export function CityScene({ owner, night, onPick, onHover, onSelect, selected, detail = true, phase, weather = 'clear' }: CitySceneProps) {
+export function CityScene({ owner, night, onPick, onHover, onSelect, selected, detail = true, phase, weather = 'clear', cycle = false }: CitySceneProps) {
   const ph = phase ?? (night ? 'night' : 'day');
   const grass = useMemo(grassPoints, []);
   const [hover, setHover] = useState<number | null>(null);
@@ -316,8 +345,12 @@ export function CityScene({ owner, night, onPick, onHover, onSelect, selected, d
           <Boat a={1.8} b={RIVER[0] - 1.2} z={(RIVER[0] + RIVER[1]) / 2} />
           <GrassField points={grass} />
           <Clouds dim={ph !== 'day'} storm={weather !== 'clear'} />
-          {ph === 'day' && weather === 'clear' && <Birds />}
-          {ph === 'night' && weather === 'clear' && <Fireflies spots={FIREFLY_SPOTS} />}
+          {/* chim và đom đóm luôn dựng khi trời quang, tự hiện/ẩn dần theo chu kỳ ngày đêm */}
+          {weather === 'clear' && (cycle || ph !== 'night') && <Birds />}
+          {weather === 'clear' && (cycle || ph === 'night') && <Fireflies spots={FIREFLY_SPOTS} />}
+          <WaterWaves p={[(RIVER[0] + RIVER[1]) / 2, 0.075, 0]} size={[RIVER[1] - RIVER[0], EDGE * 2]} along="z" />
+          <WaterWaves p={[0, 0.076, (RIVER[0] + RIVER[1]) / 2]} size={[RIVER[1] - RIVER[0], EDGE * 2]} along="x" />
+          <Walkers n={Math.min(12, 3 + plot.length)} span={RIVER[0] - 0.5} lanes={WALK_LANES} />
           {weather === 'rain' && <RainRipples spots={RIPPLE_SPOTS} />}
         </>
       )}
@@ -341,14 +374,14 @@ export function CityScene({ owner, night, onPick, onHover, onSelect, selected, d
           <group key={i} position={[x, 0, z]}>
             <Box p={[0, 0.02, 0]} s={[1.86, 0.04, 1.86]} r={0} c={C.lot} cast={false} />
             {p ? (
-              <group key={p.i + ':' + p.g} name={'item-' + i} onPointerOver={onPick ? undefined : over(i, label)} onPointerOut={onPick ? undefined : out}
+              <ItemSlot key={p.i + ':' + p.g} name={'item-' + i} hot={!onPick && hover === i} onPointerOver={onPick ? undefined : over(i, label)} onPointerOut={onPick ? undefined : out}
                 onClick={onPick ? undefined : pick({ kind: 'item', slot: i, item: p })}>
                 <Appear animate={mounted.current}>
                   <ItemModel id={p.i} />
                   {p.g ? <Spinner y={ITEM_HEIGHT[p.i] + 0.35} /> : null}
                 </Appear>
                 {selected?.kind === 'item' && selected.slot === i && <SelectRing />}
-              </group>
+              </ItemSlot>
             ) : <EmptyLot i={i} />}
             {onPick && (
               <SlotTile i={i} occupied={!!p} hot={hover === i} onPick={onPick} onOut={out}

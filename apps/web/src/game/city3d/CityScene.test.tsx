@@ -130,6 +130,20 @@ describe('CityScene', () => {
     expect(hourStep(9, 9)).toBe(0);
   });
 
+  it('rê chuột vào công trình thì nhấc lên, rời chuột thì hạ xuống; kích thước công trình không đổi', async () => {
+    const plot = allItems.slice(0, 2);
+    const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(90, HKEYS[0], plot)} night={false} onSelect={() => {}} />);
+    const slot = () => r.scene.find((n) => n.props.name === 'item-2');
+    await r.fireEvent(slot(), 'pointerOver');
+    await r.advanceFrames(40, 0.02);
+    expect(slot().instance.position.y).toBeGreaterThan(0.12);
+    expect(slot().children[0].instance.scale.x).toBe(1);
+    await r.fireEvent(slot(), 'pointerOut');
+    await r.advanceFrames(80, 0.02);
+    expect(Math.abs(slot().instance.position.y)).toBeLessThan(0.01);
+    await r.unmount();
+  });
+
   it('không có onPick thì không có lô bấm được', async () => {
     const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(90)} night={false} />);
     expect(r.scene.findAll((n) => typeof n.props.name === 'string' && n.props.name.startsWith('slot-'))).toHaveLength(0);

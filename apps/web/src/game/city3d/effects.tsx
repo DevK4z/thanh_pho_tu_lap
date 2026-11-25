@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Box, C } from './parts';
+import { Box, C, fallMat, glow, waveMat } from './parts';
 
 type V3 = [number, number, number];
 /** Số giả ngẫu nhiên ổn định theo hạt giống, để cảnh giống nhau mỗi lần mở. */
@@ -61,7 +61,7 @@ export function FloatingRocks({ edge }: { edge: number }) {
 
 /** Thác nước đổ xuống từ mép đảo: màn nước trong mờ, vệt bọt chạy xuống và mây bụi nước ở chân thác.
     p: điểm mép trên giữa thác; along: trục ngang của màn nước ('x' hoặc 'z'). */
-export function Waterfall({ p, width, along, night }: { p: V3; width: number; along: 'x' | 'z'; night: boolean }) {
+export function Waterfall({ p, width, along }: { p: V3; width: number; along: 'x' | 'z'; night?: boolean }) {
   const H = 7;
   const streaks = useRef<(THREE.Mesh | null)[]>([]);
   const mist = useRef<THREE.Group>(null);
@@ -79,9 +79,9 @@ export function Waterfall({ p, width, along, night }: { p: V3; width: number; al
   const rot: V3 = along === 'x' ? [0, 0, 0] : [0, Math.PI / 2, 0];
   return (
     <group position={p} rotation={rot}>
-      <mesh position={[0, -H / 2, 0.02]}>
+      {/* màn nước dùng vật liệu chung: đổi màu dần theo chu kỳ ngày đêm */}
+      <mesh position={[0, -H / 2, 0.02]} material={fallMat}>
         <planeGeometry args={[width, H]} />
-        <meshStandardMaterial color={night ? C.waterNight : '#7cc8ef'} transparent opacity={0.72} roughness={0.1} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       {Array.from({ length: N }, (_, i) => (
         <mesh key={i} ref={(m) => { streaks.current[i] = m; }} position={[(rnd(i + 3) - 0.5) * width * 0.85, 0, 0.06]}>
@@ -156,13 +156,21 @@ export function Clouds({ dim, storm }: { dim: boolean; storm?: boolean }) {
       if (c.position.x > 30) c.position.x = -30;
     });
   });
-  const col = storm ? (dim ? '#4a5266' : '#8a94a3') : dim ? '#8090b8' : '#ffffff';
+  // Một vật liệu chung cho cả đám mây: màu chuyển dần từ ngày sang đêm theo chu kỳ (không có chu kỳ thì theo dim).
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 1, transparent: true }), []);
+  const dayCol = useMemo(() => new THREE.Color(storm ? '#8a94a3' : '#ffffff'), [storm]);
+  const nightCol = useMemo(() => new THREE.Color(storm ? '#4a5266' : '#8090b8'), [storm]);
+  useFrame(() => {
+    const n = glow.value >= 0 ? glow.night : dim ? 1 : 0;
+    mat.color.lerpColors(dayCol, nightCol, n);
+    mat.opacity = storm ? 0.97 : 0.95 - 0.4 * n;
+  });
   return (
     <group ref={g} scale={storm ? [1.35, 1.1, 1.35] : 1}>
       {clouds.map((c, i) => (
         <group key={i} position={[c.x, c.y, c.z]} scale={[c.s * 1.4, c.s * 0.75, c.s]}>
           {[[0, 0, 0, 1], [0.9, -0.15, 0.1, 0.75], [-0.9, -0.2, -0.1, 0.7], [0.35, 0.35, -0.2, 0.7], [-0.4, 0.25, 0.25, 0.6]].map(([x, y, z, r], k) => (
-            <mesh key={k} position={[x, y, z]}><sphereGeometry args={[r, 12, 10]} /><meshStandardMaterial color={col} roughness={1} transparent opacity={storm ? 0.97 : dim ? 0.55 : 0.95} /></mesh>
+            <mesh key={k} position={[x, y, z]} material={mat}><sphereGeometry args={[r, 12, 10]} /></mesh>
           ))}
         </group>
       ))}
@@ -173,8 +181,13 @@ export function Clouds({ dim, storm }: { dim: boolean; storm?: boolean }) {
 /** Đàn chim bay vòng trên thành phố, vỗ cánh. */
 export function Birds() {
   const g = useRef<THREE.Group>(null);
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3b3b4a', transparent: true }), []);
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
+    // Chiều tối chim bay về tổ: mờ dần rồi ẩn.
+    const show = glow.value >= 0 ? 1 - Math.min(1, glow.value * 1.4) : 1;
+    mat.opacity = show;
+    if (g.current) g.current.visible = show > 0.02;
     g.current?.children.forEach((b, i) => {
       const a = t * 0.18 + i * 0.5;
       const r = 9 + (i % 3) * 0.8;
@@ -189,8 +202,8 @@ export function Birds() {
     <group ref={g}>
       {Array.from({ length: 5 }, (_, i) => (
         <group key={i}>
-          <mesh position={[0, 0, 0.12]}><boxGeometry args={[0.08, 0.015, 0.24]} /><meshStandardMaterial color="#3b3b4a" /></mesh>
-          <mesh position={[0, 0, -0.12]}><boxGeometry args={[0.08, 0.015, 0.24]} /><meshStandardMaterial color="#3b3b4a" /></mesh>
+          <mesh position={[0, 0, 0.12]} material={mat}><boxGeometry args={[0.08, 0.015, 0.24]} /></mesh>
+          <mesh position={[0, 0, -0.12]} material={mat}><boxGeometry args={[0.08, 0.015, 0.24]} /></mesh>
         </group>
       ))}
     </group>
@@ -208,7 +221,10 @@ export function Fireflies({ spots }: { spots: [number, number][] }) {
       const [x, z] = spots[i % spots.length];
       const ph = rnd(i) * 10;
       m.position.set(x + Math.sin(t * 0.7 + ph) * 0.9, 0.6 + Math.sin(t * 1.3 + ph) * 0.35 + rnd(i + 7) * 0.6, z + Math.cos(t * 0.5 + ph) * 0.9);
-      (m.material as THREE.MeshBasicMaterial).opacity = 0.3 + 0.7 * Math.max(0, Math.sin(t * 2.5 + ph));
+      // Đom đóm hiện dần khi trời tối hẳn.
+      const dark = glow.value >= 0 ? glow.night : 1;
+      (m.material as THREE.MeshBasicMaterial).opacity = dark * (0.3 + 0.7 * Math.max(0, Math.sin(t * 2.5 + ph)));
+      m.visible = dark > 0.02;
     });
   });
   return <>{Array.from({ length: n }, (_, i) => (
@@ -410,4 +426,97 @@ export function SnowCover({ size }: { size: number }) {
       <meshStandardMaterial ref={m} color="#ffffff" roughness={0.9} transparent opacity={0.15} depthWrite={false} />
     </mesh>
   );
+}
+
+/* ---------------- Người đi bộ, sóng nước, lấp lánh ---------------- */
+const SHIRTS = ['#e45b5b', '#3f7fd8', '#f2b33d', '#4cb37a', '#9b6bd6', '#ef7aa2', '#2fb8a4'];
+const SKIN = ['#f3d2b3', '#e0b48f', '#c98d63', '#8d5a3b'];
+
+/** Người đi bộ trên vỉa hè: đi qua lại dọc một đường, vung chân, nhún nhẹ.
+    lanes: các đường đi [trục, toạ độ cố định]: 'x' đi dọc trục x ở z cố định, 'z' đi dọc trục z ở x cố định. */
+export function Walkers({ n, lanes, span }: { n: number; lanes: ['x' | 'z', number][]; span: number }) {
+  const refs = useRef<(THREE.Group | null)[]>([]);
+  const people = useMemo(() => Array.from({ length: n }, (_, i) => ({
+    lane: lanes[i % lanes.length], start: rnd(i + 11) * span * 2 - span, v: 0.35 + rnd(i + 21) * 0.25, ph: rnd(i + 31) * 6,
+    shirt: SHIRTS[i % SHIRTS.length], skin: SKIN[Math.floor(rnd(i + 41) * SKIN.length)], pants: rnd(i + 51) < 0.5 ? '#36405a' : '#5a4636', h: 0.9 + rnd(i + 61) * 0.2,
+  })), [n, lanes, span]);
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    refs.current.forEach((g, i) => {
+      if (!g) return;
+      const p = people[i];
+      // Đi qua lại: toạ độ chạy theo sóng tam giác giữa -span và span.
+      const d = span * 2, raw = p.start + span + t * p.v, k = ((raw % (2 * d)) + 2 * d) % (2 * d);
+      const pos = k < d ? k - span : 2 * d - k - span, dir = k < d ? 1 : -1;
+      const [axis, fixed] = p.lane;
+      if (axis === 'x') { g.position.set(pos, 0.08, fixed); g.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2; }
+      else { g.position.set(fixed, 0.08, pos); g.rotation.y = dir > 0 ? 0 : Math.PI; }
+      const step = Math.sin(t * 7 * p.v + p.ph);
+      g.position.y += Math.abs(step) * 0.015;
+      (g.children[0] as THREE.Object3D).rotation.x = step * 0.6;
+      (g.children[1] as THREE.Object3D).rotation.x = -step * 0.6;
+      (g.children[3] as THREE.Object3D).rotation.x = -step * 0.5;
+      (g.children[4] as THREE.Object3D).rotation.x = step * 0.5;
+    });
+  });
+  return (
+    <>
+      {people.map((p, i) => (
+        <group key={i} ref={(g) => { refs.current[i] = g; }} scale={p.h}>
+          {/* chân trái, chân phải (xoay quanh hông), thân, tay trái, tay phải, đầu, tóc */}
+          {[-0.035, 0.035].map((x, k) => (
+            <group key={k} position={[x, 0.12, 0]}><mesh position={[0, -0.06, 0]} castShadow><boxGeometry args={[0.04, 0.12, 0.04]} /><meshStandardMaterial color={p.pants} /></mesh></group>
+          ))}
+          <mesh position={[0, 0.19, 0]} castShadow><capsuleGeometry args={[0.05, 0.08, 4, 8]} /><meshStandardMaterial color={p.shirt} roughness={0.7} /></mesh>
+          {[-0.065, 0.065].map((x, k) => (
+            <group key={k} position={[x, 0.24, 0]}><mesh position={[0, -0.05, 0]}><boxGeometry args={[0.025, 0.1, 0.025]} /><meshStandardMaterial color={p.shirt} /></mesh></group>
+          ))}
+          <mesh position={[0, 0.31, 0]} castShadow><sphereGeometry args={[0.045, 12, 10]} /><meshStandardMaterial color={p.skin} roughness={0.8} /></mesh>
+          <mesh position={[0, 0.335, -0.008]}><sphereGeometry args={[0.047, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} /><meshStandardMaterial color="#3a2a22" /></mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** Mặt sóng gợn trên sông: lưới phẳng nhiều ô, dịch đỉnh lên xuống theo sóng và tính lại pháp tuyến để ánh sáng lấp loáng. */
+export function WaterWaves({ p, size, along }: { p: V3; size: [number, number]; along: 'x' | 'z' }) {
+  const geo = useMemo(() => {
+    const [w, l] = size;
+    const g = new THREE.PlaneGeometry(along === 'z' ? w : l, along === 'z' ? l : w, along === 'z' ? 4 : 60, along === 'z' ? 60 : 4);
+    g.rotateX(-Math.PI / 2);
+    return g;
+  }, [size, along]);
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i), u = along === 'z' ? z : x, v = along === 'z' ? x : z;
+      pos.setY(i, Math.sin(u * 2.6 + t * 1.8) * 0.018 + Math.sin(u * 5.1 - t * 2.4 + v * 3) * 0.009);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+  });
+  return <mesh geometry={geo} position={p} material={waveMat} receiveShadow />;
+}
+
+/** Tia lấp lánh bay vòng quanh ngôi sao của công trình mạ vàng. */
+export function GoldSparkles({ y }: { y: number }) {
+  const refs = useRef<(THREE.Mesh | null)[]>([]);
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    refs.current.forEach((m, i) => {
+      if (!m) return;
+      const a = t * 1.4 + (i * Math.PI * 2) / 4;
+      m.position.set(Math.cos(a) * 0.38, y + Math.sin(t * 2.2 + i) * 0.12, Math.sin(a) * 0.38);
+      m.rotation.y = t * 3;
+      m.scale.setScalar(0.6 + 0.4 * Math.abs(Math.sin(t * 3 + i)));
+    });
+  });
+  return <>{[0, 1, 2, 3].map((i) => (
+    <mesh key={i} ref={(m) => { refs.current[i] = m; }}>
+      <octahedronGeometry args={[0.05]} />
+      <meshBasicMaterial color={i % 2 ? '#fff6c2' : '#efbd35'} toneMapped={false} />
+    </mesh>
+  ))}</>;
 }

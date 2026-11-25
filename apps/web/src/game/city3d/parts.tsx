@@ -24,13 +24,52 @@ export const glow = { value: -1, night: 0 };
 export const winMat = new THREE.MeshStandardMaterial({ color: C.win, roughness: 0.65, emissive: C.winNight, emissiveIntensity: 0 });
 export const bulbMat = new THREE.MeshStandardMaterial({ color: '#e8e8e8', roughness: 0.7, emissive: '#ffd877', emissiveIntensity: 0 });
 export const waterMat = new THREE.MeshStandardMaterial({ color: C.water, roughness: 0.1, metalness: 0.1 });
-const COL = { win: new THREE.Color(C.win), winN: new THREE.Color(C.winNight), bulb: new THREE.Color('#e8e8e8'), bulbN: new THREE.Color('#fff1b0'), water: new THREE.Color(C.water), waterN: new THREE.Color(C.waterNight) };
+/** Mặt sóng phía trên mặt nước: trong mờ để thấy gợn sáng mà không che màu nước. */
+export const waveMat = new THREE.MeshStandardMaterial({ color: C.water, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55, depthWrite: false });
+export const tailMat = new THREE.MeshStandardMaterial({ color: '#7a1712', roughness: 0.5, emissive: '#ff2a1a', emissiveIntensity: 0 });
+export const fallMat = new THREE.MeshStandardMaterial({ color: '#7cc8ef', transparent: true, opacity: 0.72, roughness: 0.1, side: THREE.DoubleSide, depthWrite: false });
+
+/** Vệt sáng tròn mờ dần ra rìa (vẽ một lần bằng canvas; môi trường không có canvas thì dùng màu đặc). */
+function haloTexture(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const ctx = cv.getContext?.('2d');
+  if (!ctx) return null;
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.25, 'rgba(255,230,170,0.55)');
+  g.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
+}
+/** Quầng sáng quanh đèn ban đêm (giả hiệu ứng bloom): cộng sáng, không ghi chiều sâu. */
+export const haloMat = new THREE.SpriteMaterial({ map: haloTexture(), color: '#ffd38a', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+const COL = { fall: new THREE.Color('#7cc8ef'), fallN: new THREE.Color('#2a5f8a'), win: new THREE.Color(C.win), winN: new THREE.Color(C.winNight), bulb: new THREE.Color('#e8e8e8'), bulbN: new THREE.Color('#fff1b0'), water: new THREE.Color(C.water), waterN: new THREE.Color(C.waterNight) };
 function applyGlow(g: number, n: number) {
   winMat.color.lerpColors(COL.win, COL.winN, g);
   winMat.emissiveIntensity = 0.9 * g;
   bulbMat.color.lerpColors(COL.bulb, COL.bulbN, g);
   bulbMat.emissiveIntensity = 2 * g;
   waterMat.color.lerpColors(COL.water, COL.waterN, n);
+  waveMat.color.lerpColors(COL.water, COL.waterN, n);
+  fallMat.color.lerpColors(COL.fall, COL.fallN, n);
+  tailMat.emissiveIntensity = 0.3 + 1.6 * g;
+  haloMat.opacity = 0.85 * g;
+}
+
+/** Gió: cây đung đưa nhẹ, mỗi cây lệch pha theo vị trí để không lắc đồng loạt. */
+function useSway(p: V3, amount = 0.05) {
+  const g = useRef<THREE.Group>(null);
+  const ph = (p[0] * 1.7 + p[2] * 2.3) % 6.28;
+  useFrame(({ clock }) => {
+    if (!g.current) return;
+    const t = clock.getElapsedTime();
+    g.current.rotation.z = Math.sin(t * 1.3 + ph) * amount;
+    g.current.rotation.x = Math.sin(t * 0.9 + ph * 1.3) * amount * 0.6;
+  });
+  return g;
 }
 /** Đặt trong cảnh: mỗi khung hình áp độ sáng hiện tại vào các vật liệu dùng chung. */
 export function GlowSync() {
@@ -101,26 +140,32 @@ export function Ball({ p = [0, 0, 0], r, c, emissive, ei = 1, rough = 0.7 }: { p
 
 /** Cây tán tròn. */
 export function Tree({ p = [0, 0, 0], s = 1, c = C.leaf }: { p?: V3; s?: number; c?: string }) {
+  const sway = useSway(p);
   return (
     <group position={p} scale={s}>
-      <Cyl p={[0, 0.25, 0]} r={0.07} h={0.5} c={C.trunk} seg={8} />
-      <Ball p={[0, 0.7, 0]} r={0.36} c={c} />
-      <Ball p={[0.16, 0.55, 0.1]} r={0.24} c={C.leaf2} />
+      <group ref={sway}>
+        <Cyl p={[0, 0.25, 0]} r={0.07} h={0.5} c={C.trunk} seg={8} />
+        <Ball p={[0, 0.7, 0]} r={0.36} c={c} />
+        <Ball p={[0.16, 0.55, 0.1]} r={0.24} c={C.leaf2} />
+      </group>
     </group>
   );
 }
 
 /** Cây thông nhiều tầng. */
 export function Pine({ p = [0, 0, 0], s = 1 }: { p?: V3; s?: number }) {
+  const sway = useSway(p, 0.035);
   return (
     <group position={p} scale={s}>
-      <Cyl p={[0, 0.15, 0]} r={0.07} h={0.3} c={C.trunk} seg={8} />
-      {[0, 1, 2].map((i) => (
-        <mesh key={i} position={[0, 0.45 + i * 0.28, 0]} castShadow>
-          <coneGeometry args={[0.42 - i * 0.1, 0.5, 9]} />
-          <meshStandardMaterial color={C.pine} roughness={0.8} />
-        </mesh>
-      ))}
+      <group ref={sway}>
+        <Cyl p={[0, 0.15, 0]} r={0.07} h={0.3} c={C.trunk} seg={8} />
+        {[0, 1, 2].map((i) => (
+          <mesh key={i} position={[0, 0.45 + i * 0.28, 0]} castShadow>
+            <coneGeometry args={[0.42 - i * 0.1, 0.5, 9]} />
+            <meshStandardMaterial color={C.pine} roughness={0.8} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -164,6 +209,7 @@ export function Lamp({ p, light }: { p: V3; light?: boolean }) {
     <group position={p}>
       <Cyl p={[0, 0.45, 0]} r={0.035} h={0.9} c="#3d4148" seg={8} />
       <mesh position={[0, 0.93, 0]} castShadow material={bulbMat}><sphereGeometry args={[0.08, 16, 12]} /></mesh>
+      <sprite position={[0, 0.93, 0]} scale={[0.9, 0.9, 0.9]} material={haloMat} />
       {light && <pointLight ref={pl} position={[0, 0.9, 0]} color="#ffcf7a" intensity={0} distance={4.5} decay={2} />}
     </group>
   );
