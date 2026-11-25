@@ -8,7 +8,7 @@ import type * as THREE from 'three';
 import type { CityOwner } from '../iso';
 import { EmptyLot, HouseModel, ITEM_HEIGHT, ItemModel } from './models';
 import { Box, C, Lamp, NightCtx, Pine, StarShape, Tree } from './parts';
-import { Birds, Boat, Clouds, Fireflies, FloatingRocks, Glints, GrassField, IslandRock, Smoke, Waterfall } from './effects';
+import { Birds, Boat, Clouds, Fireflies, FloatingRocks, Glints, GrassField, IslandRock, Precipitation, RainRipples, Smoke, SnowCover, Waterfall, type Weather } from './effects';
 
 export const CELL = 2;
 /** Tâm lô (hàng r, cột c) trong toạ độ thế giới. */
@@ -30,6 +30,8 @@ function grassPoints(): [number, number][] {
   }
   return out;
 }
+/** Chỗ mưa rơi tạo vòng nước: mặt sông và giữa đường. */
+const RIPPLE_SPOTS: [number, number][] = [[(RIVER[0] + RIVER[1]) / 2, -6], [(RIVER[0] + RIVER[1]) / 2, 4], [-5, (RIVER[0] + RIVER[1]) / 2], [3, (RIVER[0] + RIVER[1]) / 2], [-4, 0], [5, 0], [0, -5], [0, 3]];
 const FIREFLY_SPOTS: [number, number][] = [[-5, -8.6], [3, -8.8], [-8.6, -4.5], [-8.8, 4], [6.5, -8.2], [-8.4, 7.5], [-4, 4], [4.5, 4.5]];
 
 export interface HoverInfo { label: string; slot?: number }
@@ -267,9 +269,11 @@ export interface CitySceneProps {
   detail?: boolean;
   /** Thời điểm trong ngày; hoàng hôn cũng bật đèn như ban đêm. Mặc định suy ra từ night. */
   phase?: 'day' | 'dusk' | 'night';
+  /** Thời tiết: nắng, mưa hoặc tuyết. Mặc định nắng. */
+  weather?: Weather;
 }
 
-export function CityScene({ owner, night, onPick, onHover, onSelect, selected, detail = true, phase }: CitySceneProps) {
+export function CityScene({ owner, night, onPick, onHover, onSelect, selected, detail = true, phase, weather = 'clear' }: CitySceneProps) {
   const ph = phase ?? (night ? 'night' : 'day');
   const grass = useMemo(grassPoints, []);
   const [hover, setHover] = useState<number | null>(null);
@@ -310,11 +314,14 @@ export function CityScene({ owner, night, onPick, onHover, onSelect, selected, d
           <Glints segs={[[(RIVER[0] + RIVER[1]) / 2, -EDGE + 0.3, (RIVER[0] + RIVER[1]) / 2, EDGE - 0.3], [-EDGE + 0.3, (RIVER[0] + RIVER[1]) / 2, EDGE - 0.3, (RIVER[0] + RIVER[1]) / 2]]} />
           <Boat a={1.8} b={RIVER[0] - 1.2} z={(RIVER[0] + RIVER[1]) / 2} />
           <GrassField points={grass} />
-          <Clouds dim={ph !== 'day'} />
-          {ph === 'day' && <Birds />}
-          {ph === 'night' && <Fireflies spots={FIREFLY_SPOTS} />}
+          <Clouds dim={ph !== 'day'} storm={weather !== 'clear'} />
+          {ph === 'day' && weather === 'clear' && <Birds />}
+          {ph === 'night' && weather === 'clear' && <Fireflies spots={FIREFLY_SPOTS} />}
+          {weather === 'rain' && <RainRipples spots={RIPPLE_SPOTS} />}
         </>
       )}
+      {weather !== 'clear' && <Precipitation key={weather} kind={weather} count={detail ? (weather === 'rain' ? 700 : 600) : 220} half={EDGE + 2} />}
+      {weather === 'snow' && <SnowCover size={EDGE * 2} />}
 
       <group position={[hx, 0, hz]}
         onPointerOver={(e) => { e.stopPropagation(); onHover?.({ label: `Nhà của ${owner.name} · ${L.n}` }); }}

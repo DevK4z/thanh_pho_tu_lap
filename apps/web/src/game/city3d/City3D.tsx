@@ -3,12 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CameraControls, Environment, Lightformer, Stars } from '@react-three/drei';
+import type * as THREE from 'three';
 import { HST, ITEMS, POP, TIERS, levelOf } from '@tptl/shared';
 import type { CityOwner } from '../iso';
 import { CityScene, cellPos, type HoverInfo, type Selected } from './CityScene';
+import { seasonWeather, type Weather } from './effects';
 
 type TimeMode = 'auto' | 'day' | 'dusk' | 'night';
 type Phase = 'day' | 'dusk' | 'night';
+type WeatherMode = 'auto' | Weather;
+
+const WEATHER_LABEL: Record<Weather, string> = { clear: '☀️ Nắng', rain: '🌧️ Mưa', snow: '❄️ Tuyết' };
+const WEATHER_NEXT: Record<WeatherMode, WeatherMode> = { auto: 'clear', clear: 'rain', rain: 'snow', snow: 'auto' };
 type Quality = 'auto' | 'low' | 'high';
 type View = 'overview' | 'home' | 'top';
 
@@ -30,6 +36,31 @@ const SKY: Record<Phase, { bg: string; fog: string }> = {
   dusk: { bg: 'linear-gradient(180deg,#2e3a78 0%,#8a5b9c 32%,#e2788a 60%,#f8b56f 85%,#ffd9a0 100%)', fog: '#e8a08f' },
   night: { bg: 'linear-gradient(180deg,#03081a 0%,#0a1433 55%,#1a2c5c 100%)', fog: '#0f1c3d' },
 };
+/** Trời khi mưa (xám, tối) và khi tuyết (xám sáng). */
+const SKY_RAIN: Record<Phase, { bg: string; fog: string }> = {
+  day: { bg: 'linear-gradient(180deg,#5d6876 0%,#8c97a4 50%,#b9c2cc 100%)', fog: '#a7b1bc' },
+  dusk: { bg: 'linear-gradient(180deg,#2f3343 0%,#5d5867 50%,#8c7f84 100%)', fog: '#6f6a74' },
+  night: { bg: 'linear-gradient(180deg,#05070d 0%,#111725 60%,#20283a 100%)', fog: '#1a2030' },
+};
+const SKY_SNOW: Record<Phase, { bg: string; fog: string }> = {
+  day: { bg: 'linear-gradient(180deg,#a9bacb 0%,#d3dde8 50%,#f2f6fa 100%)', fog: '#e3eaf1' },
+  dusk: { bg: 'linear-gradient(180deg,#56607e 0%,#a58fa6 50%,#e9c9c0 100%)', fog: '#c9b2b5' },
+  night: { bg: 'linear-gradient(180deg,#0b1222 0%,#1d2a45 60%,#3a4a6a 100%)', fog: '#2c3a56' },
+};
+
+/** Chớp khi mưa: thỉnh thoảng lóe sáng hai nhịp. */
+function Lightning() {
+  const l = useRef<THREE.AmbientLight>(null);
+  const next = useRef(4 + Math.random() * 8);
+  const t0 = useRef(-10);
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (t > next.current) { t0.current = t; next.current = t + 6 + Math.random() * 12; }
+    const e = t - t0.current;
+    if (l.current) l.current.intensity = e < 0.08 ? 3 : e > 0.16 && e < 0.24 ? 2 : 0;
+  });
+  return <ambientLight ref={l} color="#dfe8ff" intensity={0} />;
+}
 const lowEnd = () => typeof matchMedia !== 'undefined' && (matchMedia('(pointer: coarse)').matches || (navigator.hardwareConcurrency ?? 8) <= 4);
 
 const [hx, hz] = cellPos(1, 1);
@@ -89,12 +120,13 @@ function Reflections({ phase }: { phase: Phase }) {
   );
 }
 
-function Lights({ phase, shadows }: { phase: Phase; shadows: boolean }) {
+/** dim: hệ số giảm sáng khi trời mưa, tuyết (mây che bớt nắng). */
+function Lights({ phase, shadows, dim = 1 }: { phase: Phase; shadows: boolean; dim?: number }) {
   if (phase === 'dusk') {
     return (
       <>
-        <hemisphereLight args={['#ffcfb0', '#4a3f63', 0.85]} />
-        <directionalLight position={[-16, 7, 9]} intensity={2.1} color="#ffab6b" castShadow={shadows}
+        <hemisphereLight args={['#ffcfb0', '#4a3f63', 0.85 * (0.5 + dim / 2)]} />
+        <directionalLight position={[-16, 7, 9]} intensity={2.1 * dim} color="#ffab6b" castShadow={shadows}
           shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={6} shadow-camera-left={-16} shadow-camera-right={16} shadow-camera-top={16} shadow-camera-bottom={-16} />
       </>
     );
@@ -107,8 +139,8 @@ function Lights({ phase, shadows }: { phase: Phase; shadows: boolean }) {
     </>
   ) : (
     <>
-      <hemisphereLight args={['#d8ecff', '#6a8f4a', 1.1]} />
-      <directionalLight position={[12, 18, 8]} intensity={2.4} color="#fff1d6" castShadow={shadows}
+      <hemisphereLight args={['#d8ecff', '#6a8f4a', 1.1 * (0.5 + dim / 2)]} />
+      <directionalLight position={[12, 18, 8]} intensity={2.4 * dim} color="#fff1d6" castShadow={shadows}
         shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={5} shadow-camera-left={-16} shadow-camera-right={16} shadow-camera-top={16} shadow-camera-bottom={-16} />
     </>
   );
@@ -151,6 +183,8 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   height?: string;
 }) {
   const [time, setTime] = useState<TimeMode>(() => load('tptl-3d-time', 'auto', ['auto', 'day', 'dusk', 'night'] as const));
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>(() => load('tptl-3d-weather', 'auto', ['auto', 'clear', 'rain', 'snow'] as const));
+  const [seasonal, setSeasonal] = useState<Weather>(() => seasonWeather());
   const [quality, setQuality] = useState<Quality>(() => load('tptl-3d-quality', 'auto', ['auto', 'low', 'high'] as const));
   const [rotate, setRotate] = useState(() => load('tptl-3d-rotate', 'off', ['on', 'off'] as const) === 'on');
   const [hover, setHover] = useState<HoverInfo | null>(null);
@@ -172,11 +206,12 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   useEffect(() => setSelected(null), [owner.name]);
 
   useEffect(() => {
-    const id = setInterval(() => setClockPhase(phaseNow()), 60_000);
+    const id = setInterval(() => { setClockPhase(phaseNow()); setSeasonal(seasonWeather()); }, 60_000);
     return () => clearInterval(id);
   }, []);
   useEffect(() => save('tptl-3d-time', time), [time]);
   useEffect(() => save('tptl-3d-quality', quality), [quality]);
+  useEffect(() => save('tptl-3d-weather', weatherMode), [weatherMode]);
   useEffect(() => save('tptl-3d-rotate', rotate ? 'on' : 'off'), [rotate]);
 
   const phase: Phase = time === 'auto' ? clockPhase : time;
@@ -186,18 +221,20 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
     const el = box.current;
     controls.current?.setLookAt(...viewFor(v, el ? el.clientWidth / Math.max(1, el.clientHeight) : 1.6), true);
   };
-  const sky = SKY[phase];
+  const weather: Weather = weatherMode === 'auto' ? seasonal : weatherMode;
+  const sky = (weather === 'rain' ? SKY_RAIN : weather === 'snow' ? SKY_SNOW : SKY)[phase];
 
   return (
     <div ref={box} className={`relative w-full overflow-hidden transition-[background] duration-700 ${fs ? 'h-screen' : `rounded-2xl border border-line ${height}`}`} style={{ background: sky.bg }}>
       <Canvas shadows={high ? 'percentage' : false} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 220 }}
         gl={{ antialias: true, alpha: true }} onPointerMissed={() => { setHover(null); setSelected(null); }}>
-        <fog attach="fog" args={[sky.fog, 40, 95]} />
-        <Lights phase={phase} shadows={high} />
-        <SkyBody phase={phase} />
+        <fog attach="fog" args={[sky.fog, weather === 'clear' ? 40 : 26, weather === 'clear' ? 95 : 70]} />
+        <Lights phase={phase} shadows={high} dim={weather === 'rain' ? 0.45 : weather === 'snow' ? 0.75 : 1} />
+        {(weather === 'clear' || (weather === 'snow' && phase === 'night')) && <SkyBody phase={phase} />}
+        {weather === 'rain' && <Lightning />}
         {high && <Reflections phase={phase} />}
-        {phase !== 'day' && <Stars radius={70} depth={25} count={phase === 'night' ? 2200 : 500} factor={3.5} fade speed={0.6} />}
-        <CityScene owner={owner} night={night} phase={phase} detail={high} onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
+        {phase !== 'day' && weather === 'clear' && <Stars radius={70} depth={25} count={phase === 'night' ? 2200 : 500} factor={3.5} fade speed={0.6} />}
+        <CityScene owner={owner} night={night} phase={phase} weather={weather} detail={high} onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
         <CameraControls ref={controls} makeDefault minDistance={6} maxDistance={48} minPolarAngle={0.15} maxPolarAngle={1.35} smoothTime={0.35} />
         <AutoRotate controls={controls} on={rotate && !onPick} />
         <InitialView controls={controls} />
@@ -214,6 +251,10 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
           {(['auto', 'day', 'dusk', 'night'] as const).map((t) => (
             <button key={t} type="button" className={btn} aria-pressed={time === t} onClick={() => setTime(t)}>{t === 'auto' ? 'Theo giờ' : t === 'day' ? 'Ngày' : t === 'dusk' ? 'Hoàng hôn' : 'Đêm'}</button>
           ))}
+          <button type="button" className={btn} onClick={() => setWeatherMode(WEATHER_NEXT[weatherMode])}
+            title="Đổi thời tiết: theo mùa → nắng → mưa → tuyết" aria-label={`Thời tiết: ${weatherMode === 'auto' ? 'theo mùa, hôm nay ' : ''}${WEATHER_LABEL[weather]}`}>
+            {weatherMode === 'auto' ? `Theo mùa · ${WEATHER_LABEL[weather]}` : WEATHER_LABEL[weather]}
+          </button>
           <button type="button" className={btn} onClick={() => setQuality(high ? 'low' : 'high')} title="Đổi chất lượng hiển thị">{high ? 'Đẹp' : 'Nhẹ'}</button>
           {onSwitch2D && !fs && <button type="button" className={btn} onClick={onSwitch2D}>2D</button>}
           {document.fullscreenEnabled !== false && (
