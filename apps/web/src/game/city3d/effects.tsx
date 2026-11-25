@@ -367,7 +367,7 @@ export function Precipitation({ kind, count, half }: { kind: 'rain' | 'snow'; co
     mesh.instanceMatrix.needsUpdate = true;
   });
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, count]} frustumCulled={false}>
+    <instancedMesh ref={ref} name={'precip-' + kind} args={[undefined, undefined, count]} frustumCulled={false}>
       {kind === 'rain' ? <boxGeometry args={[0.015, 0.42, 0.015]} /> : <octahedronGeometry args={[0.055, 0]} />}
       <meshBasicMaterial color={kind === 'rain' ? '#cfe3f5' : '#ffffff'} transparent opacity={kind === 'rain' ? 0.55 : 0.95} depthWrite={false} />
     </instancedMesh>
@@ -405,7 +405,7 @@ export function SnowCover({ size }: { size: number }) {
     m.current.opacity = 0.15 + 0.5 * k.current;
   });
   return (
-    <mesh position={[0, 0.095, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+    <mesh name="snow-cover" position={[0, 0.095, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[size - 0.2, size - 0.2]} />
       <meshStandardMaterial ref={m} color="#ffffff" roughness={0.9} transparent opacity={0.15} depthWrite={false} />
     </mesh>

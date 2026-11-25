@@ -87,8 +87,9 @@ describe('CityScene', () => {
       for (const detail of [true, false]) {
         const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(240)} night={false} weather={weather} detail={detail} />);
         await r.advanceFrames(40, 0.05);
-        const inst = r.scene.findAll((x) => x.type === 'InstancedMesh').map((x) => x.instance as unknown as { count: number });
-        expect(inst.some((m) => m.count === (detail ? (weather === 'rain' ? 700 : 600) : 220))).toBe(true);
+        const precip = r.scene.find((x) => x.props.name === 'precip-' + weather);
+        expect((precip.props.args as unknown[])[2]).toBe(detail ? (weather === 'rain' ? 700 : 600) : 220);
+        expect(r.scene.findAll((x) => x.props.name === 'snow-cover')).toHaveLength(weather === 'snow' ? 1 : 0);
         await r.unmount();
       }
     }
