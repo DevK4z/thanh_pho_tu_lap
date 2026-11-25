@@ -2,6 +2,7 @@
 import type { ComponentType } from 'react';
 import type { HouseStyle, ItemId } from '@tptl/shared';
 import { Ball, Box, Bush, C, Cyl, Lamp, Pine, Roof, Tree, Win, WindowGrid } from './parts';
+import { Beacon, Flag, FountainSpray } from './effects';
 
 const WALL: Record<string, string> = { wood: C.wood, wb: C.orange, wa: C.cream, wc: C.white };
 const ROOF: Record<string, string> = { rr: C.red, rb: C.blue, rg: C.green };
@@ -72,7 +73,7 @@ export function HouseModel({ style, lv }: { style: HouseStyle; lv: number }) {
       {lv >= 5 && (
         <group position={[-0.55, 0, -0.5]}>
           <Cyl p={[0, 1.0, 0]} r={0.025} h={2} c="#3d4148" seg={8} />
-          <Box p={[0.22, 1.8, 0]} s={[0.4, 0.26, 0.02]} r={0.01} c={C.gold} />
+          <Flag p={[0, 1.8, 0]} />
         </group>
       )}
     </group>
@@ -176,6 +177,7 @@ function CongVien() {
       <Cyl p={[0, 0.17, 0]} r={0.32} h={0.04} c={C.water} rough={0.15} />
       <Cyl p={[0, 0.35, 0]} r={0.05} h={0.35} c={C.stone} seg={10} />
       <Ball p={[0, 0.55, 0]} r={0.08} c={C.water} rough={0.1} />
+      <FountainSpray y={0.55} />
       <Tree p={[-0.6, 0, -0.6]} s={0.8} /><Tree p={[0.6, 0, -0.6]} s={0.7} c={C.leaf2} /><Tree p={[-0.6, 0, 0.6]} s={0.7} c={C.leaf2} /><Pine p={[0.6, 0, 0.6]} s={0.7} />
       <Box p={[0.45, 0.12, 0.2]} s={[0.1, 0.06, 0.35]} c={C.wood} />
     </>
@@ -192,7 +194,7 @@ function Thap() {
       <Cyl p={[0, 2.78, 0]} r={0.47} h={0.1} c={C.red} />
       <mesh position={[0, 3.0, 0]} castShadow><coneGeometry args={[0.35, 0.35, 12]} /><meshStandardMaterial color={C.red} roughness={0.5} /></mesh>
       <Cyl p={[0, 3.4, 0]} r={0.015} h={0.5} c="#3d4148" seg={6} />
-      <Ball p={[0, 3.67, 0]} r={0.05} c={C.red} emissive={C.red} ei={1.5} />
+      <Beacon p={[0, 3.67, 0]} />
     </>
   );
 }

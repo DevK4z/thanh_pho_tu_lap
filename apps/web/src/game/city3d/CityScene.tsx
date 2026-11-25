@@ -1,13 +1,14 @@
 /* Cảnh thành phố 3D (không gồm Canvas và camera, để test được bằng @react-three/test-renderer).
    Bố cục giống bản 2D: lưới 7×7 lô, đường ở hàng 3 và cột 3, nhà chính ở lô (1,1), sông chạy dọc hai cạnh phía trước,
    rừng thông ở hai cạnh phía sau. Trục x theo cột, trục z theo hàng; mỗi lô rộng 2. */
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { GN, ITEMS, SLOTS, levelOf, type ItemId, type PlotItem } from '@tptl/shared';
 import type * as THREE from 'three';
 import type { CityOwner } from '../iso';
 import { EmptyLot, HouseModel, ITEM_HEIGHT, ItemModel } from './models';
 import { Box, C, Lamp, NightCtx, Pine, StarShape, Tree } from './parts';
+import { Birds, Boat, Clouds, Fireflies, FloatingRocks, Glints, GrassField, IslandRock, Smoke, Waterfall } from './effects';
 
 export const CELL = 2;
 /** Tâm lô (hàng r, cột c) trong toạ độ thế giới. */
@@ -15,6 +16,21 @@ export const cellPos = (r: number, c: number): [number, number] => [(c - 3) * CE
 const HALF = (GN * CELL) / 2;
 const EDGE = HALF + 3.2;
 const RIVER = [HALF + 0.5, HALF + 2.3] as const;
+
+/** Điểm rải cỏ hoa trên viền đảo: ngoài khu lô đất, tránh đường và sông. */
+function grassPoints(): [number, number][] {
+  const out: [number, number][] = [];
+  const r = (n: number) => { const k = Math.sin(n * 91.345 + 12.7) * 43758.5453; return k - Math.floor(k); };
+  const inRiver = (v: number) => v > RIVER[0] - 0.35 && v < RIVER[1] + 0.35;
+  for (let i = 0; i < 900 && out.length < 240; i++) {
+    const x = -EDGE + 0.3 + r(i) * (EDGE * 2 - 0.6), z = -EDGE + 0.3 + r(i + 1000) * (EDGE * 2 - 0.6);
+    if (Math.abs(x) < HALF + 0.15 && Math.abs(z) < HALF + 0.15) continue;
+    if (Math.abs(x) < 1.4 || Math.abs(z) < 1.4 || inRiver(x) || inRiver(z)) continue;
+    out.push([x, z]);
+  }
+  return out;
+}
+const FIREFLY_SPOTS: [number, number][] = [[-5, -8.6], [3, -8.8], [-8.6, -4.5], [-8.8, 4], [6.5, -8.2], [-8.4, 7.5], [-4, 4], [4.5, 4.5]];
 
 export interface HoverInfo { label: string; slot?: number }
 /** Công trình hoặc nhà chính đang được chọn (bấm vào) để xem thông tin. */
@@ -247,9 +263,15 @@ export interface CitySceneProps {
   /** Bấm vào công trình hoặc nhà chính (khi không ở chế độ đặt công trình). */
   onSelect?: (s: Selected | null) => void;
   selected?: Selected | null;
+  /** Hiệu ứng trang trí (đáy đảo, thác, mây, chim, cỏ hoa…); tắt ở chế độ chất lượng nhẹ. Mặc định bật. */
+  detail?: boolean;
+  /** Thời điểm trong ngày; hoàng hôn cũng bật đèn như ban đêm. Mặc định suy ra từ night. */
+  phase?: 'day' | 'dusk' | 'night';
 }
 
-export function CityScene({ owner, night, onPick, onHover, onSelect, selected }: CitySceneProps) {
+export function CityScene({ owner, night, onPick, onHover, onSelect, selected, detail = true, phase }: CitySceneProps) {
+  const ph = phase ?? (night ? 'night' : 'day');
+  const grass = useMemo(grassPoints, []);
   const [hover, setHover] = useState<number | null>(null);
   // Sau lần dựng đầu, công trình nào mới xuất hiện thì chạy hiệu ứng xây.
   const mounted = useRef(false);
@@ -272,19 +294,34 @@ export function CityScene({ owner, night, onPick, onHover, onSelect, selected }:
   };
 
   return (
-    <NightCtx.Provider value={night}>
+    <NightCtx.Provider value={ph !== 'day'}>
       <Ground />
       <Roads />
-      <River night={night} />
+      <River night={ph === 'night'} />
       <Forest />
       <Lamps />
       <Cars n={Math.min(6, Math.floor(plot.length / 2))} />
+      {detail && (
+        <>
+          <IslandRock size={EDGE * 2} top={-1.85} />
+          <FloatingRocks edge={EDGE} />
+          <Waterfall p={[(RIVER[0] + RIVER[1]) / 2, 0.06, EDGE + 0.02]} width={RIVER[1] - RIVER[0]} along="x" night={ph === 'night'} />
+          <Waterfall p={[EDGE + 0.02, 0.06, (RIVER[0] + RIVER[1]) / 2]} width={RIVER[1] - RIVER[0]} along="z" night={ph === 'night'} />
+          <Glints segs={[[(RIVER[0] + RIVER[1]) / 2, -EDGE + 0.3, (RIVER[0] + RIVER[1]) / 2, EDGE - 0.3], [-EDGE + 0.3, (RIVER[0] + RIVER[1]) / 2, EDGE - 0.3, (RIVER[0] + RIVER[1]) / 2]]} />
+          <Boat a={1.8} b={RIVER[0] - 1.2} z={(RIVER[0] + RIVER[1]) / 2} />
+          <GrassField points={grass} />
+          <Clouds dim={ph !== 'day'} />
+          {ph === 'day' && <Birds />}
+          {ph === 'night' && <Fireflies spots={FIREFLY_SPOTS} />}
+        </>
+      )}
 
       <group position={[hx, 0, hz]}
         onPointerOver={(e) => { e.stopPropagation(); onHover?.({ label: `Nhà của ${owner.name} · ${L.n}` }); }}
         onPointerOut={(e) => { e.stopPropagation(); onHover?.(null); }}
         onClick={onPick ? undefined : pick({ kind: 'house' })}>
         <HouseModel style={owner.style} lv={L.lv} />
+        {detail && L.lv >= 4 && <Smoke p={[0.35, 1.68, -0.2]} />}
         {selected?.kind === 'house' && <SelectRing />}
       </group>
 
