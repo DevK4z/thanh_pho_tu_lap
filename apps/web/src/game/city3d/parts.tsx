@@ -29,20 +29,18 @@ export const waveMat = new THREE.MeshStandardMaterial({ color: C.water, roughnes
 export const tailMat = new THREE.MeshStandardMaterial({ color: '#7a1712', roughness: 0.5, emissive: '#ff2a1a', emissiveIntensity: 0 });
 export const fallMat = new THREE.MeshStandardMaterial({ color: '#7cc8ef', transparent: true, opacity: 0.72, roughness: 0.1, side: THREE.DoubleSide, depthWrite: false });
 
-/** Vệt sáng tròn mờ dần ra rìa (vẽ một lần bằng canvas; môi trường không có canvas thì dùng màu đặc). */
-function haloTexture(): THREE.Texture | null {
-  if (typeof document === 'undefined') return null;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = 64;
-  const ctx = cv.getContext?.('2d');
-  if (!ctx) return null;
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.25, 'rgba(255,230,170,0.55)');
-  g.addColorStop(1, 'rgba(255,200,120,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(cv);
+/** Vệt sáng tròn mờ dần ra rìa, tính thẳng từng điểm ảnh (không cần canvas, chạy được cả trong môi trường test). */
+function haloTexture(): THREE.Texture {
+  const N = 64, data = new Uint8Array(N * N * 4);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const d = Math.hypot(x - N / 2 + 0.5, y - N / 2 + 0.5) / (N / 2);
+    const a = Math.max(0, 1 - d);
+    const i = (y * N + x) * 4;
+    data[i] = 255; data[i + 1] = 235; data[i + 2] = 190; data[i + 3] = Math.round(255 * a * a);
+  }
+  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+  t.needsUpdate = true;
+  return t;
 }
 /** Quầng sáng quanh đèn ban đêm (giả hiệu ứng bloom): cộng sáng, không ghi chiều sâu. */
 export const haloMat = new THREE.SpriteMaterial({ map: haloTexture(), color: '#ffd38a', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
