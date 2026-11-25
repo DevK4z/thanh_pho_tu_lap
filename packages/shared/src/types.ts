@@ -1,5 +1,5 @@
 /* Hợp đồng dữ liệu giữa REST API và giao diện. Mốc thời gian là mili giây (epoch). */
-import type { ActKey, HouseStyle, ItemId, Mode, PhotoKind, QuitReason } from './constants';
+import type { ActKey, HouseStyle, ItemId, Mode, PhotoKind, QuitReason, TaskCategory, TaskPriority } from './constants';
 
 export type Provider = 'google' | 'facebook' | 'guest';
 
@@ -323,3 +323,11 @@ export interface ResultReviewItem {
   verified: boolean; review: SpotResult | null;
 }
 export interface ResultReview { items: ResultReviewItem[] }
+
+/** Một việc trong ngày của người dùng (không thuộc nhóm nào). day theo giờ máy người dùng, dạng YYYY-MM-DD. */
+export interface DayTask {
+  id: string; day: string; title: string; category: TaskCategory; priority: TaskPriority; note: string;
+  done: boolean; doneAt: number | null; position: number; createdAt: number;
+}
+/** Số việc và số việc đã xong của một ngày (chỉ những ngày có việc). */
+export interface TaskDayStat { day: string; total: number; done: number }

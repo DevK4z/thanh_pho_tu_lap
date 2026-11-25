@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { type AnyPgColumn, boolean, index, real, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { ActKey, HouseStyle, Mode, PendingReward, PhotoKind, PlotItem, ProofStatus, Provider, QuitReason, ResultStatus, SpotResult } from '@tptl/shared';
+import type { ActKey, HouseStyle, Mode, PendingReward, PhotoKind, PlotItem, ProofStatus, Provider, QuitReason, ResultStatus, SpotResult, TaskCategory, TaskPriority } from '@tptl/shared';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -167,3 +167,19 @@ export const questions = pgTable('questions', {
   answer: integer('answer').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [index('questions_group_idx').on(t.groupId)]);
+
+/** Nhiệm vụ trong ngày của một người dùng: việc đột xuất, không gắn với nhóm, không tính điểm. */
+export const dayTasks = pgTable('day_tasks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** Ngày theo giờ máy người dùng, YYYY-MM-DD. */
+  day: text('day').notNull(),
+  title: text('title').notNull(),
+  category: text('category').$type<TaskCategory>().notNull().default('other'),
+  priority: text('priority').$type<TaskPriority>().notNull().default('medium'),
+  note: text('note').notNull().default(''),
+  done: boolean('done').notNull().default(false),
+  doneAt: ts('done_at'),
+  position: integer('position').notNull().default(0),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [index('day_tasks_user_day_idx').on(t.userId, t.day)]);
