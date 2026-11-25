@@ -2,12 +2,13 @@
    Điều khiển: kéo chuột trái để xoay, cuộn để phóng to, kéo chuột phải (hoặc hai ngón) để di chuyển. */
 import { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { CameraControls, Stars } from '@react-three/drei';
+import { CameraControls, Environment, Lightformer, Stars } from '@react-three/drei';
 import { HST, ITEMS, POP, TIERS, levelOf } from '@tptl/shared';
 import type { CityOwner } from '../iso';
 import { CityScene, cellPos, type HoverInfo, type Selected } from './CityScene';
 
-type TimeMode = 'auto' | 'day' | 'night';
+type TimeMode = 'auto' | 'day' | 'dusk' | 'night';
+type Phase = 'day' | 'dusk' | 'night';
 type Quality = 'auto' | 'low' | 'high';
 type View = 'overview' | 'home' | 'top';
 
@@ -17,7 +18,18 @@ const load = <T extends string>(k: string, d: T, ok: readonly T[]): T => {
 const save = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* bỏ qua */ } };
 
 const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-const isNightNow = () => { const h = new Date().getHours(); return h < 6 || h >= 18; };
+/** Theo giờ máy: đêm 19h–5h, hoàng hôn/bình minh 17h–19h và 5h–6h30, còn lại là ngày. */
+const phaseNow = (): Phase => {
+  const d = new Date(), h = d.getHours() + d.getMinutes() / 60;
+  if (h < 5 || h >= 19) return 'night';
+  return h >= 17 || h < 6.5 ? 'dusk' : 'day';
+};
+/** Màu trời (nền CSS phía sau canvas trong suốt) và màu sương mù khớp đường chân trời. */
+const SKY: Record<Phase, { bg: string; fog: string }> = {
+  day: { bg: 'linear-gradient(180deg,#5aaef0 0%,#9fd4fb 45%,#dff1ff 100%)', fog: '#cfe8fb' },
+  dusk: { bg: 'linear-gradient(180deg,#2e3a78 0%,#8a5b9c 32%,#e2788a 60%,#f8b56f 85%,#ffd9a0 100%)', fog: '#e8a08f' },
+  night: { bg: 'linear-gradient(180deg,#03081a 0%,#0a1433 55%,#1a2c5c 100%)', fog: '#0f1c3d' },
+};
 const lowEnd = () => typeof matchMedia !== 'undefined' && (matchMedia('(pointer: coarse)').matches || (navigator.hardwareConcurrency ?? 8) <= 4);
 
 const [hx, hz] = cellPos(1, 1);
@@ -52,8 +64,42 @@ function AutoRotate({ controls, on }: { controls: React.RefObject<CameraControls
   return null;
 }
 
-function Lights({ night, shadows }: { night: boolean; shadows: boolean }) {
-  return night ? (
+/** Mặt trời hoặc mặt trăng ở xa, không bị sương mù che. */
+function SkyBody({ phase }: { phase: Phase }) {
+  const pos: [number, number, number] = phase === 'night' ? [-30, 26, -40] : phase === 'dusk' ? [-46, 9, -30] : [34, 34, -42];
+  const col = phase === 'night' ? '#f4f1dc' : phase === 'dusk' ? '#ffb15e' : '#fff6cf';
+  return (
+    <group position={pos}>
+      <mesh><sphereGeometry args={[phase === 'dusk' ? 4 : 3, 32, 24]} /><meshBasicMaterial color={col} fog={false} toneMapped={false} /></mesh>
+      <mesh><sphereGeometry args={[phase === 'dusk' ? 7 : 5.2, 32, 24]} /><meshBasicMaterial color={col} transparent opacity={0.18} fog={false} depthWrite={false} toneMapped={false} /></mesh>
+      {phase === 'night' && <mesh position={[0.9, 0.6, 1.2]}><sphereGeometry args={[0.7, 16, 12]} /><meshBasicMaterial color="#d9d5bd" fog={false} /></mesh>}
+    </group>
+  );
+}
+
+/** Ánh sáng phản chiếu nhẹ trên kính, kim loại (chỉ chế độ đẹp): môi trường dựng từ vài tấm sáng, không tải ảnh. */
+function Reflections({ phase }: { phase: Phase }) {
+  const warm = phase === 'dusk' ? '#ffb07a' : phase === 'night' ? '#4a5fa8' : '#ffffff';
+  return (
+    <Environment resolution={64} frames={1} environmentIntensity={phase === 'night' ? 0.15 : 0.35}>
+      <Lightformer form="rect" intensity={2} color={warm} position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[20, 20, 1]} />
+      <Lightformer form="rect" intensity={1} color="#bfe3ff" position={[-10, 3, 6]} rotation={[0, Math.PI / 2, 0]} scale={[10, 4, 1]} />
+      <Lightformer form="ring" intensity={1.5} color={warm} position={[10, 5, -8]} scale={4} />
+    </Environment>
+  );
+}
+
+function Lights({ phase, shadows }: { phase: Phase; shadows: boolean }) {
+  if (phase === 'dusk') {
+    return (
+      <>
+        <hemisphereLight args={['#ffcfb0', '#4a3f63', 0.85]} />
+        <directionalLight position={[-16, 7, 9]} intensity={2.1} color="#ffab6b" castShadow={shadows}
+          shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={6} shadow-camera-left={-16} shadow-camera-right={16} shadow-camera-top={16} shadow-camera-bottom={-16} />
+      </>
+    );
+  }
+  return phase === 'night' ? (
     <>
       <hemisphereLight args={['#3a4f88', '#14200f', 0.45]} />
       <directionalLight position={[-8, 14, 6]} intensity={0.55} color="#a9bcff" castShadow={shadows}
@@ -61,9 +107,9 @@ function Lights({ night, shadows }: { night: boolean; shadows: boolean }) {
     </>
   ) : (
     <>
-      <hemisphereLight args={['#d8ecff', '#6a8f4a', 1.15]} />
-      <directionalLight position={[12, 18, 8]} intensity={2.3} color="#fff4e0" castShadow={shadows}
-        shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-camera-left={-14} shadow-camera-right={14} shadow-camera-top={14} shadow-camera-bottom={-14} />
+      <hemisphereLight args={['#d8ecff', '#6a8f4a', 1.1]} />
+      <directionalLight position={[12, 18, 8]} intensity={2.4} color="#fff1d6" castShadow={shadows}
+        shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={5} shadow-camera-left={-16} shadow-camera-right={16} shadow-camera-top={16} shadow-camera-bottom={-16} />
     </>
   );
 }
@@ -104,11 +150,11 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   onSwitch2D?: () => void;
   height?: string;
 }) {
-  const [time, setTime] = useState<TimeMode>(() => load('tptl-3d-time', 'auto', ['auto', 'day', 'night'] as const));
+  const [time, setTime] = useState<TimeMode>(() => load('tptl-3d-time', 'auto', ['auto', 'day', 'dusk', 'night'] as const));
   const [quality, setQuality] = useState<Quality>(() => load('tptl-3d-quality', 'auto', ['auto', 'low', 'high'] as const));
   const [rotate, setRotate] = useState(() => load('tptl-3d-rotate', 'off', ['on', 'off'] as const) === 'on');
   const [hover, setHover] = useState<HoverInfo | null>(null);
-  const [clockNight, setClockNight] = useState(isNightNow);
+  const [clockPhase, setClockPhase] = useState<Phase>(phaseNow);
   const controls = useRef<CameraControls | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
@@ -126,30 +172,32 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
   useEffect(() => setSelected(null), [owner.name]);
 
   useEffect(() => {
-    const id = setInterval(() => setClockNight(isNightNow()), 60_000);
+    const id = setInterval(() => setClockPhase(phaseNow()), 60_000);
     return () => clearInterval(id);
   }, []);
   useEffect(() => save('tptl-3d-time', time), [time]);
   useEffect(() => save('tptl-3d-quality', quality), [quality]);
   useEffect(() => save('tptl-3d-rotate', rotate ? 'on' : 'off'), [rotate]);
 
-  const night = time === 'auto' ? clockNight : time === 'night';
+  const phase: Phase = time === 'auto' ? clockPhase : time;
+  const night = phase === 'night';
   const high = quality === 'high' || (quality === 'auto' && !lowEnd());
   const go = (v: View) => {
     const el = box.current;
     controls.current?.setLookAt(...viewFor(v, el ? el.clientWidth / Math.max(1, el.clientHeight) : 1.6), true);
   };
-  const bg = night ? '#0b1530' : '#bfe3ff';
+  const sky = SKY[phase];
 
   return (
-    <div ref={box} className={`relative w-full overflow-hidden ${fs ? 'h-screen' : `rounded-2xl border border-line ${height}`}`} style={{ background: bg }}>
-      <Canvas shadows={high ? 'percentage' : false} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 200 }}
-        gl={{ antialias: true }} onPointerMissed={() => { setHover(null); setSelected(null); }}>
-        <color attach="background" args={[bg]} />
-        <fog attach="fog" args={[bg, 38, 80]} />
-        <Lights night={night} shadows={high} />
-        {night && <Stars radius={60} depth={20} count={1500} factor={3} fade speed={0.5} />}
-        <CityScene owner={owner} night={night} onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
+    <div ref={box} className={`relative w-full overflow-hidden transition-[background] duration-700 ${fs ? 'h-screen' : `rounded-2xl border border-line ${height}`}`} style={{ background: sky.bg }}>
+      <Canvas shadows={high ? 'percentage' : false} dpr={high ? [1, 2] : 1} camera={{ position: VIEWS.overview.slice(0, 3) as [number, number, number], fov: 35, near: 0.5, far: 220 }}
+        gl={{ antialias: true, alpha: true }} onPointerMissed={() => { setHover(null); setSelected(null); }}>
+        <fog attach="fog" args={[sky.fog, 40, 95]} />
+        <Lights phase={phase} shadows={high} />
+        <SkyBody phase={phase} />
+        {high && <Reflections phase={phase} />}
+        {phase !== 'day' && <Stars radius={70} depth={25} count={phase === 'night' ? 2200 : 500} factor={3.5} fade speed={0.6} />}
+        <CityScene owner={owner} night={night} phase={phase} detail={high} onPick={onPick} onHover={setHover} onSelect={onPick ? undefined : setSelected} selected={onPick ? null : selected} />
         <CameraControls ref={controls} makeDefault minDistance={6} maxDistance={48} minPolarAngle={0.15} maxPolarAngle={1.35} smoothTime={0.35} />
         <AutoRotate controls={controls} on={rotate && !onPick} />
         <InitialView controls={controls} />
@@ -163,8 +211,8 @@ export default function City3D({ owner, onPick, onSwitch2D, height = 'h-[440px] 
           {!onPick && <button type="button" className={btn} aria-pressed={rotate} onClick={() => setRotate((x) => !x)}>Tự xoay</button>}
         </div>
         <div className="pointer-events-auto flex flex-wrap gap-1.5">
-          {(['auto', 'day', 'night'] as const).map((t) => (
-            <button key={t} type="button" className={btn} aria-pressed={time === t} onClick={() => setTime(t)}>{t === 'auto' ? 'Theo giờ' : t === 'day' ? 'Ngày' : 'Đêm'}</button>
+          {(['auto', 'day', 'dusk', 'night'] as const).map((t) => (
+            <button key={t} type="button" className={btn} aria-pressed={time === t} onClick={() => setTime(t)}>{t === 'auto' ? 'Theo giờ' : t === 'day' ? 'Ngày' : t === 'dusk' ? 'Hoàng hôn' : 'Đêm'}</button>
           ))}
           <button type="button" className={btn} onClick={() => setQuality(high ? 'low' : 'high')} title="Đổi chất lượng hiển thị">{high ? 'Đẹp' : 'Nhẹ'}</button>
           {onSwitch2D && !fs && <button type="button" className={btn} onClick={onSwitch2D}>2D</button>}

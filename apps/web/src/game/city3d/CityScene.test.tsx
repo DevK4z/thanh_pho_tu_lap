@@ -66,6 +66,21 @@ describe('CityScene', () => {
     await r.unmount();
   }, 30_000);
 
+  it('hiệu ứng trang trí: hoàng hôn và đêm dựng được, chế độ nhẹ bớt chi tiết', async () => {
+    const count = async (el: React.ReactElement) => {
+      const r = await ReactThreeTestRenderer.create(el);
+      await r.advanceFrames(10, 0.05);
+      const n = r.scene.findAll((x) => x.type === 'Mesh' || x.type === 'InstancedMesh').length;
+      await r.unmount();
+      return n;
+    };
+    const full = await count(<CityScene owner={owner(600)} night={false} phase="dusk" />);
+    const night = await count(<CityScene owner={owner(600)} night phase="night" />);
+    const light = await count(<CityScene owner={owner(600)} night={false} detail={false} />);
+    expect(full).toBeGreaterThan(light + 50);
+    expect(night).toBeGreaterThan(light + 50);
+  }, 30_000);
+
   it('không có onPick thì không có lô bấm được', async () => {
     const r = await ReactThreeTestRenderer.create(<CityScene owner={owner(90)} night={false} />);
     expect(r.scene.findAll((n) => typeof n.props.name === 'string' && n.props.name.startsWith('slot-'))).toHaveLength(0);
