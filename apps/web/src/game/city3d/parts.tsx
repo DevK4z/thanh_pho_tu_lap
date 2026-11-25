@@ -1,6 +1,7 @@
 /* Khối dựng cơ bản cho thành phố 3D phong cách đồ chơi: khối bo tròn, mái tam giác, cây, cửa sổ, đèn đường.
    Đơn vị: một lô đất rộng 2; mặt đất ở y = 0. */
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -15,6 +16,32 @@ export const C = {
 /** Ban đêm: cửa sổ và đèn đường sáng lên. */
 export const NightCtx = createContext(false);
 export const useNight = () => useContext(NightCtx);
+
+/** Độ sáng đèn và cửa sổ (0–1) do chu kỳ ngày đêm cập nhật mỗi khung hình; night: trọng số đêm (màu nước).
+    value = -1 khi không có chu kỳ chạy (ví dụ trong test): khi đó dùng NightCtx bật/tắt ngay. */
+export const glow = { value: -1, night: 0 };
+/** Vật liệu dùng chung cho mọi cửa sổ, bóng đèn, mặt nước: đổi một lần là cả thành phố sáng dần theo. */
+export const winMat = new THREE.MeshStandardMaterial({ color: C.win, roughness: 0.65, emissive: C.winNight, emissiveIntensity: 0 });
+export const bulbMat = new THREE.MeshStandardMaterial({ color: '#e8e8e8', roughness: 0.7, emissive: '#ffd877', emissiveIntensity: 0 });
+export const waterMat = new THREE.MeshStandardMaterial({ color: C.water, roughness: 0.1, metalness: 0.1 });
+const COL = { win: new THREE.Color(C.win), winN: new THREE.Color(C.winNight), bulb: new THREE.Color('#e8e8e8'), bulbN: new THREE.Color('#fff1b0'), water: new THREE.Color(C.water), waterN: new THREE.Color(C.waterNight) };
+function applyGlow(g: number, n: number) {
+  winMat.color.lerpColors(COL.win, COL.winN, g);
+  winMat.emissiveIntensity = 0.9 * g;
+  bulbMat.color.lerpColors(COL.bulb, COL.bulbN, g);
+  bulbMat.emissiveIntensity = 2 * g;
+  waterMat.color.lerpColors(COL.water, COL.waterN, n);
+}
+/** Đặt trong cảnh: mỗi khung hình áp độ sáng hiện tại vào các vật liệu dùng chung. */
+export function GlowSync() {
+  const night = useNight();
+  useFrame(() => {
+    const driven = glow.value >= 0;
+    applyGlow(driven ? glow.value : night ? 1 : 0, driven ? glow.night : night ? 1 : 0);
+  });
+  applyGlow(glow.value >= 0 ? glow.value : night ? 1 : 0, glow.value >= 0 ? glow.night : night ? 1 : 0);
+  return null;
+}
 
 type V3 = [number, number, number];
 interface BoxProps { p?: V3; s: V3; c: string; r?: number; rot?: V3; emissive?: string; ei?: number; metal?: number; rough?: number; opacity?: number; cast?: boolean }
@@ -109,9 +136,8 @@ export function Bush({ p = [0, 0, 0], s = 1 }: { p?: V3; s?: number }) {
 
 /** Ô cửa sổ trên một mặt tường; ban đêm phát sáng. face: hướng pháp tuyến của mặt tường. */
 export function Win({ p, w = 0.18, h = 0.22, face = 'z' }: { p: V3; w?: number; h?: number; face?: 'z' | 'x' }) {
-  const night = useNight();
   const s: V3 = face === 'z' ? [w, h, 0.03] : [0.03, h, w];
-  return <Box p={p} s={s} r={0} c={night ? C.winNight : C.win} emissive={night ? C.winNight : undefined} ei={0.9} cast={false} />;
+  return <mesh position={p} receiveShadow material={winMat}><boxGeometry args={s} /></mesh>;
 }
 
 /** Lưới cửa sổ trên hai mặt nhìn về phía camera (+x, +z) của một khối w×d, từ y0 tới y1. */
@@ -131,11 +157,14 @@ export function WindowGrid({ w, d, y0, y1, cols = 3, rows = 2, size = 0.2 }: { w
 /** Đèn đường: ban đêm bóng đèn sáng; `light` thêm nguồn sáng thật (dùng hạn chế vì tốn hiệu năng). */
 export function Lamp({ p, light }: { p: V3; light?: boolean }) {
   const night = useNight();
+  const pl = useRef<THREE.PointLight>(null);
+  // Nguồn sáng thật cũng sáng dần theo chu kỳ ngày đêm.
+  useFrame(() => { if (pl.current) pl.current.intensity = 3 * (glow.value >= 0 ? glow.value : night ? 1 : 0); });
   return (
     <group position={p}>
       <Cyl p={[0, 0.45, 0]} r={0.035} h={0.9} c="#3d4148" seg={8} />
-      <Ball p={[0, 0.93, 0]} r={0.08} c={night ? '#fff1b0' : '#e8e8e8'} emissive={night ? '#ffd877' : undefined} ei={2} />
-      {night && light && <pointLight position={[0, 0.9, 0]} color="#ffcf7a" intensity={3} distance={4.5} decay={2} />}
+      <mesh position={[0, 0.93, 0]} castShadow material={bulbMat}><sphereGeometry args={[0.08, 16, 12]} /></mesh>
+      {light && <pointLight ref={pl} position={[0, 0.9, 0]} color="#ffcf7a" intensity={0} distance={4.5} decay={2} />}
     </group>
   );
 }

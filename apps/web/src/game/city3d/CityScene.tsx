@@ -7,7 +7,7 @@ import { GN, ITEMS, SLOTS, levelOf, type ItemId, type PlotItem } from '@tptl/sha
 import type * as THREE from 'three';
 import type { CityOwner } from '../iso';
 import { EmptyLot, HouseModel, ITEM_HEIGHT, ItemModel } from './models';
-import { Box, C, Lamp, NightCtx, Pine, StarShape, Tree } from './parts';
+import { Box, C, GlowSync, Lamp, NightCtx, Pine, StarShape, Tree, waterMat } from './parts';
 import { Birds, Boat, Clouds, Fireflies, FloatingRocks, Glints, GrassField, IslandRock, Precipitation, RainRipples, Smoke, SnowCover, Waterfall, type Weather } from './effects';
 
 export const CELL = 2;
@@ -77,17 +77,17 @@ function Roads() {
 }
 
 /** Sông hình chữ L ở hai cạnh phía trước, có cầu ở chỗ đường đi qua. */
-function River({ night }: { night: boolean }) {
+function River() {
   const [a, b] = RIVER;
   const w = b - a, mid = (a + b) / 2, len = EDGE * 2;
-  const water = night ? C.waterNight : C.water;
   return (
     <group>
       {/* bờ cát */}
       <Box p={[mid, 0.0, 0]} s={[w + 0.4, 0.06, len]} r={0} c={C.sand} cast={false} />
       <Box p={[0, 0.001, mid]} s={[len, 0.06, w + 0.4]} r={0} c={C.sand} cast={false} />
-      <Box p={[mid, 0.04, 0]} s={[w, 0.06, len]} r={0} c={water} rough={0.1} metal={0.1} cast={false} />
-      <Box p={[0, 0.041, mid]} s={[len, 0.06, w]} r={0} c={water} rough={0.1} metal={0.1} cast={false} />
+      {/* mặt nước dùng vật liệu chung: chuyển màu dần theo chu kỳ ngày đêm */}
+      <mesh position={[mid, 0.04, 0]} receiveShadow material={waterMat}><boxGeometry args={[w, 0.06, len]} /></mesh>
+      <mesh position={[0, 0.041, mid]} receiveShadow material={waterMat}><boxGeometry args={[len, 0.06, w]} /></mesh>
       {/* cầu */}
       <Box p={[mid, 0.16, 0]} s={[w + 0.6, 0.12, CELL]} r={0.04} c={C.wood} />
       <Box p={[0, 0.16, mid]} s={[CELL, 0.12, w + 0.6]} r={0.04} c={C.wood} />
@@ -301,7 +301,8 @@ export function CityScene({ owner, night, onPick, onHover, onSelect, selected, d
     <NightCtx.Provider value={ph !== 'day'}>
       <Ground />
       <Roads />
-      <River night={ph === 'night'} />
+      <GlowSync />
+      <River />
       <Forest />
       <Lamps />
       <Cars n={Math.min(6, Math.floor(plot.length / 2))} />
