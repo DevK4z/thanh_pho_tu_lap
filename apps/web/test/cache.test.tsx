@@ -33,6 +33,13 @@ describe('vào ngay bằng dữ liệu lần trước', () => {
     expect(screen.queryByText('Nhập mã mời')).toBeNull();
   });
 
+  it('chưa đăng nhập: hiện ngay trang đăng nhập dù máy chủ đang ngủ, kèm thanh đang kết nối', async () => {
+    mount();
+    expect(await screen.findByText('Vào thành phố của bạn')).toBeTruthy();
+    expect(screen.queryByText('Đang mở thành phố…')).toBeNull();
+    expect(screen.getByText(/Đang kết nối máy chủ/)).toBeTruthy();
+  });
+
   it('dữ liệu gắn với tài khoản: đổi token thì không dùng dữ liệu cũ; đăng xuất thì xóa', () => {
     localStorage.setItem('tptl-token', 'token-a');
     writeCache('me', me);
