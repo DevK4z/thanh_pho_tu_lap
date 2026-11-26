@@ -42,6 +42,9 @@ jobs:
           exit 1
       - uses: actions/checkout@v4
         if: env.RENDER_BRANCH != 'main'
+        with:
+          # Cần đủ lịch sử (cả nhánh Render) để git xác nhận đây là đẩy tiếp lên, không phải ghi đè.
+          fetch-depth: 0
       - name: Đẩy nhánh Render đang theo dõi lên commit mới
         if: env.RENDER_BRANCH != 'main'
         run: |
