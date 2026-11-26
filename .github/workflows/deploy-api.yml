@@ -3,6 +3,11 @@
 # Render > dịch vụ tptl-api > Settings > Deploy Hook > sao chép URL,
 # rồi GitHub > Settings > Secrets and variables > Actions > New repository secret: RENDER_DEPLOY_HOOK.
 # Chưa có secret thì bỏ qua. Sau khi gọi, chờ /health báo đúng commit mới để chắc bản mới đã chạy.
+#
+# Deploy Hook chỉ build nhánh mà dịch vụ Render đang theo dõi. Dịch vụ hiện theo nhánh react-node-rewrite, nên trước khi gọi hook,
+# workflow đẩy nhánh đó lên đúng commit vừa merge vào main (chỉ đẩy tiếp lên, không ghi đè; nhánh lệch thì dừng và báo lỗi).
+# Nhánh lấy từ biến repo RENDER_BRANCH (mặc định react-node-rewrite). Nếu đổi Render sang theo main thì đặt RENDER_BRANCH = main:
+# bước đẩy nhánh tự bỏ qua.
 name: Deploy API
 
 on:
@@ -15,6 +20,10 @@ on:
       - 'render.yaml'
   workflow_dispatch:
 
+# Cần quyền ghi để đẩy nhánh Render đang theo dõi.
+permissions:
+  contents: write
+
 concurrency:
   group: deploy-api
   cancel-in-progress: true
@@ -23,7 +32,26 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      RENDER_BRANCH: ${{ vars.RENDER_BRANCH || 'react-node-rewrite' }}
     steps:
+      - name: Chỉ deploy từ main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Chỉ deploy API từ nhánh main (đang chạy trên ${GITHUB_REF#refs/heads/})."
+          exit 1
+      - uses: actions/checkout@v4
+        if: env.RENDER_BRANCH != 'main'
+      - name: Đẩy nhánh Render đang theo dõi lên commit mới
+        if: env.RENDER_BRANCH != 'main'
+        run: |
+          # Không dùng --force: nếu nhánh có commit không nằm trong main thì GitHub từ chối và workflow dừng ở đây.
+          if git push origin "HEAD:refs/heads/$RENDER_BRANCH"; then
+            echo "Nhánh $RENDER_BRANCH đã ở ${GITHUB_SHA:0:7}."
+          else
+            echo "::error::Không đẩy nhanh được nhánh $RENDER_BRANCH lên ${GITHUB_SHA:0:7} (nhánh có commit không nằm trong main). Kiểm tra nhánh đó, hoặc đổi Render sang theo main và đặt biến RENDER_BRANCH = main."
+            exit 1
+          fi
       - name: Gọi Deploy Hook của Render
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
