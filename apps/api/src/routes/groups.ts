@@ -73,16 +73,30 @@ async function loadDays(db: Db, ids: string[]): Promise<Map<string, Days>> {
   return out;
 }
 
-export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, isAdmin }: Ctx) {
-  /** Mã mời chưa dùng (thử lại vài lần nếu trùng). */
-  async function freshInvite(): Promise<string> {
-    for (let i = 0; i < 5; i++) {
-      const c = makeInvite();
-      const [hit] = await db.select({ id: groups.id }).from(groups).where(eq(groups.inviteCode, c)).limit(1);
-      if (!hit) return c;
-    }
-    throw new HttpError(500, 'invite_failed', 'Chưa tạo được mã mời, hãy thử lại.');
+/** Mã mời chưa dùng (thử lại vài lần nếu trùng). */
+async function freshInviteCode(db: Db): Promise<string> {
+  for (let i = 0; i < 5; i++) {
+    const c = makeInvite();
+    const [hit] = await db.select({ id: groups.id }).from(groups).where(eq(groups.inviteCode, c)).limit(1);
+    if (!hit) return c;
   }
+  throw new HttpError(500, 'invite_failed', 'Chưa tạo được mã mời, hãy thử lại.');
+}
+
+/** Đưa tài khoản vào nhóm riêng của mình (tạo nếu chưa có). Dùng cho tài khoản khách: vào thẳng thành phố, không cần mã mời. */
+export async function ensurePersonalGroup(db: Db, u: User): Promise<User> {
+  let [g] = await db.select({ id: groups.id }).from(groups).where(and(eq(groups.ownerId, u.id), eq(groups.personal, true))).limit(1);
+  if (!g) {
+    const name = ('Nhóm riêng của ' + u.name).slice(0, LIMITS.groupName);
+    // nameKey theo mã tài khoản: tên nhóm riêng được trùng nhau (nhiều khách cùng tên) mà không vướng ràng buộc tên nhóm duy nhất.
+    [g] = await db.insert(groups).values({ name, nameKey: 'rieng:' + u.id, ownerId: u.id, inviteCode: await freshInviteCode(db), personal: true }).returning({ id: groups.id });
+  }
+  const [nu] = await db.update(users).set({ currentGroupId: g.id }).where(eq(users.id, u.id)).returning();
+  return nu;
+}
+
+export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, isAdmin }: Ctx) {
+  const freshInvite = () => freshInviteCode(db);
 
   /** Danh sách nhóm chỉ dành cho quản trị viên ứng dụng; người khác vào nhóm bằng mã mời. */
   app.get('/groups', async (req): Promise<GroupSummary[]> => {
@@ -94,6 +108,8 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
       .from(groups)
       .innerJoin(users, eq(users.id, groups.ownerId))
       .leftJoin(members, eq(members.groupId, groups.id))
+      // Nhóm riêng của khách không hiện ở đây (mỗi khách một nhóm, sẽ làm ngập danh sách).
+      .where(eq(groups.personal, false))
       .orderBy(desc(groups.createdAt))
       .limit(100);
     return rows.map((r) => ({ id: r.id, name: r.name, inviteCode: r.inviteCode, ownerName: r.ownerName, createdAt: r.createdAt.getTime(), members: Number(r.members ?? 0) }));
@@ -121,8 +137,9 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
   app.post('/groups/join', { config: joinLimit }, async (req) => {
     const u = await requireUser(req);
     const { code } = parse(z.object({ code: z.string().max(20).transform(normalizeCode) }), req.body);
-    const [g] = code ? await db.select({ id: groups.id }).from(groups).where(eq(groups.inviteCode, code)).limit(1) : [];
+    const [g] = code ? await db.select({ id: groups.id, personal: groups.personal, ownerId: groups.ownerId }).from(groups).where(eq(groups.inviteCode, code)).limit(1) : [];
     if (!g) throw new HttpError(404, 'invite_invalid', 'Mã mời không đúng hoặc đã được đổi. Hãy hỏi lại thầy cô hoặc trưởng nhóm.');
+    if (g.personal && g.ownerId !== u.id) throw new HttpError(403, 'personal_group', 'Đây là nhóm riêng của một tài khoản khách, không nhận thành viên.');
     const [nu] = await db.update(users).set({ currentGroupId: g.id }).where(eq(users.id, u.id)).returning();
     return toMe(nu);
   });
@@ -136,6 +153,13 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
     if (!g) throw new HttpError(404, 'group_not_found', 'Nhóm không còn tồn tại.');
     const [nu] = await db.update(users).set({ currentGroupId: gid }).where(eq(users.id, u.id)).returning();
     return toMe(nu);
+  });
+
+  /** Tài khoản khách quay lại nhóm riêng của mình (tạo nếu chưa có, ví dụ khách tạo trước khi có nhóm riêng). */
+  app.post('/me/personal-group', async (req) => {
+    const u = await requireUser(req);
+    if (u.provider !== 'guest') throw new HttpError(403, 'guest_only', 'Nhóm riêng chỉ dành cho tài khoản khách.');
+    return toMe(await ensurePersonalGroup(db, u));
   });
 
   app.post('/me/leave-group', async (req) => {
@@ -168,7 +192,7 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
       if (s) active = publicSession(s);
     }
     return {
-      group: { id: g.id, name: g.name, ownerId: g.ownerId, ownerName: owner?.name ?? '', createdAt: g.createdAt.getTime(), inviteCode: g.ownerId === u.id || isAdmin(u) ? g.inviteCode : null },
+      group: { id: g.id, name: g.name, ownerId: g.ownerId, ownerName: owner?.name ?? '', createdAt: g.createdAt.getTime(), inviteCode: !g.personal && (g.ownerId === u.id || isAdmin(u)) ? g.inviteCode : null, personal: g.personal },
       isOwner: g.ownerId === u.id,
       canManage: g.ownerId === u.id || isAdmin(u),
       players: rows.map((r) => toPlayer(r, days.get(r.id)!)),
@@ -182,16 +206,17 @@ export function groupRoutes(app: FastifyInstance, { db, env, requireUser, toMe, 
   app.post('/groups/:gid/players', async (req, reply) => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
-    await requireMember(db, u, gid);
+    const g = await requireMember(db, u, gid);
     const body = parse(z.object({
       name: cleanName(LIMITS.userName),
       style: z.enum(HKEYS as [string, ...string[]]),
       dailyGoal: z.number().int().refine((n) => DAILY_GOALS.includes(n), 'mục tiêu không hợp lệ'),
-      participantCode,
+      // Mã cá nhân để ghép với phiếu khảo sát: bắt buộc ở nhóm thật, không cần ở nhóm riêng của khách.
+      participantCode: g.personal ? participantCode.optional() : participantCode,
     }), req.body);
-    await uniqueCode(gid, body.participantCode);
+    if (body.participantCode) await uniqueCode(gid, body.participantCode);
     try {
-      const [p] = await db.insert(players).values({ groupId: gid, userId: u.id, name: body.name, style: body.style as PlayerRow['style'], dailyGoal: body.dailyGoal, participantCode: body.participantCode }).returning();
+      const [p] = await db.insert(players).values({ groupId: gid, userId: u.id, name: body.name, style: body.style as PlayerRow['style'], dailyGoal: body.dailyGoal, participantCode: body.participantCode ?? null }).returning();
       return reply.status(201).send(toPlayer(p, {}));
     } catch (e) {
       if (pgCode(e) === '23505') throw new HttpError(409, 'player_exists', 'Bạn đã có nhà trong nhóm này.');

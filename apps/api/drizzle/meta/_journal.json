@@ -57,6 +57,13 @@
       "when": 1795605387322,
       "tag": "0007_nhiem-vu-ngay",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795864587322,
+      "tag": "0008_nhom-rieng-khach",
+      "breakpoints": true
     }
   ]
 }

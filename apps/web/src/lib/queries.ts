@@ -99,6 +99,8 @@ export function useGroupMembership() {
     join: useMutation({ mutationFn: (gid: string) => api<Me>('POST', `/groups/${gid}/join`), onSuccess: done }),
     joinCode: useMutation({ mutationFn: (code: string) => api<Me>('POST', '/groups/join', { code }), onSuccess: done }),
     leave: useMutation({ mutationFn: () => api<Me>('POST', '/me/leave-group'), onSuccess: done }),
+    /** Tài khoản khách quay lại nhóm riêng của mình. */
+    personal: useMutation({ mutationFn: () => api<Me>('POST', '/me/personal-group'), onSuccess: done }),
   };
 }
 

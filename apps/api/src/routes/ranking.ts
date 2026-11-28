@@ -18,7 +18,7 @@ export function rankingRoutes(app: FastifyInstance, { db, requireUser, isAdmin }
     const joinOn = range === 'week' ? sql`${scored} and ${f.day} >= ${dkey(Date.now() - 6 * 86400000)}` : scored;
     const rows = await db
       .select({
-        playerId: players.id, name: players.name, groupId: groups.id, groupName: groups.name,
+        playerId: players.id, name: players.name, groupId: groups.id, groupName: groups.name, personal: groups.personal,
         cs: sql<number>`coalesce(sum(${f.activeSec}), 0)::int`, c: sql<number>`count(${f.id})::int`,
       })
       .from(players)
@@ -28,6 +28,8 @@ export function rankingRoutes(app: FastifyInstance, { db, requireUser, isAdmin }
 
     const byGroup = new Map<string, { name: string; list: (typeof rows)[number][] }>();
     for (const r of rows) {
+      // Nhóm riêng của khách chỉ hiện với chính chủ, không xếp hạng cùng người khác.
+      if (r.personal && r.groupId !== u.currentGroupId) continue;
       const g = byGroup.get(r.groupId) ?? { name: r.groupName, list: [] };
       g.list.push(r);
       byGroup.set(r.groupId, g);

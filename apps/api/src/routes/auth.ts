@@ -7,6 +7,7 @@ import { authSessions, users } from '../db/schema';
 import { HttpError, parse } from '../errors';
 import type { Identity } from '../auth/identity';
 import { hashToken, newToken } from '../auth/tokens';
+import { ensurePersonalGroup } from './groups';
 
 export const cleanName = (max: number) => z.string().transform((s) => s.trim().replace(/\s+/g, ' ')).pipe(z.string().min(1, 'không được để trống').max(max));
 
@@ -39,7 +40,8 @@ export function authRoutes(app: FastifyInstance, { db, env, verifiers, requireUs
   app.post('/auth/guest', { config: authLimit }, async (req) => {
     const { name } = parse(z.object({ name: cleanName(LIMITS.userName) }), req.body);
     const [u] = await db.insert(users).values({ name, provider: 'guest' }).returning();
-    return issue(u);
+    // Khách vào thẳng nhóm riêng của mình, không cần mã mời.
+    return issue(await ensurePersonalGroup(db, u));
   });
 
   app.post('/auth/google', { config: authLimit }, async (req) => {

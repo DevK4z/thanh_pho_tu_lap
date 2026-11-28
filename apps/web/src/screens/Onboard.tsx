@@ -5,7 +5,8 @@ import { Button, Card, Chip, Eyebrow, Field, Grid, inputCls, Option, useToast } 
 import { api, errorMessage } from '../lib/api';
 import { usePatchMyPlayer } from '../lib/queries';
 
-export function Onboard({ gid, defaultName, onCreated }: { gid: string; defaultName: string; onCreated: () => void }) {
+/** personal: nhóm riêng của tài khoản khách, không cần mã cá nhân (mã chỉ dùng để ghép với phiếu khảo sát của nhóm thật). */
+export function Onboard({ gid, defaultName, onCreated, personal = false }: { gid: string; defaultName: string; onCreated: () => void; personal?: boolean }) {
   const toast = useToast();
   const patch = usePatchMyPlayer(gid);
   const [name, setName] = useState(defaultName);
@@ -18,10 +19,10 @@ export function Onboard({ gid, defaultName, onCreated }: { gid: string; defaultN
     const n = name.trim();
     if (!n) { toast('Hãy nhập tên hiển thị.'); return; }
     const pc = code.trim().toUpperCase();
-    if (!PARTICIPANT_RE.test(pc)) { toast('Hãy nhập mã cá nhân thầy cô cấp (chữ không dấu, số, dấu gạch), ví dụ T0-015.'); return; }
+    if (!personal && !PARTICIPANT_RE.test(pc)) { toast('Hãy nhập mã cá nhân thầy cô cấp (chữ không dấu, số, dấu gạch), ví dụ T0-015.'); return; }
     setBusy(true);
     try {
-      patch(await api<Player>('POST', `/groups/${gid}/players`, { name: n, style, dailyGoal: goal, participantCode: pc }));
+      patch(await api<Player>('POST', `/groups/${gid}/players`, { name: n, style, dailyGoal: goal, ...(personal ? {} : { participantCode: pc }) }));
       onCreated();
     } catch (e) { toast(errorMessage(e)); }
     setBusy(false);
@@ -37,10 +38,16 @@ export function Onboard({ gid, defaultName, onCreated }: { gid: string; defaultN
       <Field label="Tên hiển thị trong nhóm">
         <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} maxLength={LIMITS.userName} placeholder="Tên hoặc biệt danh" />
       </Field>
-      <Field label="Mã cá nhân">
-        <input className={inputCls + ' max-w-[220px] uppercase'} value={code} onChange={(e) => setCode(e.target.value)} maxLength={LIMITS.participantCode} placeholder="VD: T0-015" autoComplete="off" />
-      </Field>
-      <p className="-mt-2 text-[13px] text-muted">Mã do thầy cô cấp, dùng để ghép kết quả với phiếu khảo sát. Nhập sai thì nhờ trưởng nhóm sửa.</p>
+      {personal ? (
+        <p className="-mt-1 text-[13px] text-muted">Đây là nhóm riêng của bạn để dùng thử. Khi có mã mời của lớp, bấm “Đổi nhóm” ở góc trên để vào nhóm của lớp.</p>
+      ) : (
+        <>
+          <Field label="Mã cá nhân">
+            <input className={inputCls + ' max-w-[220px] uppercase'} value={code} onChange={(e) => setCode(e.target.value)} maxLength={LIMITS.participantCode} placeholder="VD: T0-015" autoComplete="off" />
+          </Field>
+          <p className="-mt-2 text-[13px] text-muted">Mã do thầy cô cấp, dùng để ghép kết quả với phiếu khảo sát. Nhập sai thì nhờ trưởng nhóm sửa.</p>
+        </>
+      )}
       <div>
         <Eyebrow className="mb-2">Kiểu nhà</Eyebrow>
         <Grid>

@@ -80,7 +80,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
   app.post('/groups/:gid/sessions', async (req, reply) => {
     const u = await requireUser(req);
     const { gid } = parse(uuidParam('gid'), req.params);
-    await requireMember(db, u, gid);
+    const g = await requireMember(db, u, gid);
     const p = await requirePlayer(db, gid, u.id);
     const body = parse(z.object({
       act: z.enum(ACT_KEYS as [ActKey, ...ActKey[]]),
@@ -93,7 +93,7 @@ export function sessionRoutes(app: FastifyInstance, { db, requireUser }: Ctx) {
     if (ACTS[body.act].mode === 'screen' && body.goal.length < MIN_GOAL_CHARS) {
       throw new HttpError(400, 'goal_required', `Phiên trên máy cần ghi rõ mục tiêu (ít nhất ${MIN_GOAL_CHARS} ký tự) để đối chiếu với kết quả cuối phiên.`);
     }
-    if (!p.participantCode) throw new HttpError(409, 'participant_required', 'Hãy nhập mã cá nhân trước khi bắt đầu phiên, để kết quả được ghép đúng với phiếu khảo sát.');
+    if (!p.participantCode && !g.personal) throw new HttpError(409, 'participant_required', 'Hãy nhập mã cá nhân trước khi bắt đầu phiên, để kết quả được ghép đúng với phiếu khảo sát.');
     if (await findRecall(db, p.id, body.day)) throw new HttpError(409, 'recall_due', 'Hãy trả lời câu hỏi nhớ lại trước khi bắt đầu phiên mới.');
     const mode = ACTS[body.act].mode;
     const plannedSec = body.minutes * 60;

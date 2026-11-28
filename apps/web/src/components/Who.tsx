@@ -36,7 +36,7 @@ export function Who({ me, group, isOwner, locked, streak }: { me: Me; group: Gro
         )}
         <b className="text-ink">{me.name}</b> <Pill>{PROVIDER[me.provider]}</Pill>
       </div>
-      {group && <div>Nhóm {group.name}{isOwner ? ' · trưởng nhóm' : me.isAdmin ? ' · quản trị viên' : ''}</div>}
+      {group && <div>{group.personal ? 'Nhóm riêng (dùng thử)' : <>Nhóm {group.name}{isOwner ? ' · trưởng nhóm' : me.isAdmin ? ' · quản trị viên' : ''}</>}</div>}
       {!locked && (
         <div className="flex gap-3">
           {me.isAdmin && <LinkButton onClick={() => { location.hash = location.hash === '#bao-cao' ? '' : '#bao-cao'; }}>{location.hash === '#bao-cao' ? 'Về ứng dụng' : 'Báo cáo'}</LinkButton>}

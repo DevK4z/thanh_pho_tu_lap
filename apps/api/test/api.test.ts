@@ -62,7 +62,8 @@ describe('đăng nhập', () => {
   it('khách phải có tên, tên được chuẩn hóa', async () => {
     expect((await call('POST', '/auth/guest', undefined, { name: '   ' })).status).toBe(400);
     const { token, me } = await guest('  Minh   Anh ');
-    expect(me).toMatchObject({ name: 'Minh Anh', provider: 'guest', currentGroupId: null });
+    // Khách vào thẳng nhóm riêng của mình (không cần mã mời).
+    expect(me).toMatchObject({ name: 'Minh Anh', provider: 'guest', currentGroupId: expect.any(String) });
     expect((await call('GET', '/me', token)).body).toMatchObject({ id: me.id });
   });
 

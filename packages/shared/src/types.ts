@@ -70,8 +70,10 @@ export interface Player {
 export interface GroupSummary { id: string; name: string; ownerName: string; createdAt: number; members: number; inviteCode: string }
 export interface GroupInfo {
   id: string; name: string; ownerId: string; ownerName: string; createdAt: number;
-  /** Mã mời: chỉ trả về cho trưởng nhóm và quản trị viên ứng dụng. */
+  /** Mã mời: chỉ trả về cho trưởng nhóm và quản trị viên ứng dụng (nhóm riêng không có). */
   inviteCode: string | null;
+  /** Nhóm riêng của tài khoản khách: không nhận thành viên, không bắt buộc mã cá nhân. */
+  personal: boolean;
 }
 
 /** Câu hỏi gửi xuống trình duyệt: không kèm đáp án. */

@@ -46,9 +46,7 @@ describe('nhiệm vụ trong ngày', () => {
     await find('Vào thành phố của bạn');
     type('Tên của bạn', 'Lan');
     fireEvent.click(btn('Vào với tên này'));
-    await find('Nhập mã mời');
-    type('Tên nhóm', 'Nhóm Việc');
-    fireEvent.click(btn('Lập nhóm'));
+    // Khách vào thẳng nhóm riêng.
     await find('Chọn khu đất đầu tiên');
 
     // Mở được ngay cả khi chưa tạo nhà trong nhóm.

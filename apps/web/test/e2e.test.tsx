@@ -79,7 +79,15 @@ describe('giao diện + API', () => {
     type('Tên của bạn', 'An');
     fireEvent.click(btn('Vào với tên này'));
 
+    // Khách vào thẳng nhóm riêng: không cần mã mời, không hỏi mã cá nhân, không có tab Quản trị.
+    await find('Chọn khu đất đầu tiên');
+    expect(screen.getByText('Nhóm riêng (dùng thử)')).toBeTruthy();
+    expect(screen.queryByLabelText('Mã cá nhân')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Quản trị' })).toBeNull();
+    // Muốn vào nhóm của lớp thì đổi nhóm; màn chọn nhóm có nút quay lại nhóm riêng.
+    fireEvent.click(btn('Đổi nhóm'));
     await find('Nhập mã mời');
+    expect(btn('Vào nhóm riêng')).toBeTruthy();
     expect(btn('Vào nhóm')).toHaveProperty('disabled', true);
     type('Tên nhóm', 'Lớp 10A1');
     fireEvent.click(btn('Lập nhóm'));
@@ -220,6 +228,8 @@ describe('giao diện + API', () => {
     await find('Vào thành phố của bạn');
     type('Tên của bạn', 'Bình');
     fireEvent.click(btn('Vào với tên này'));
+    await find('Nhóm riêng (dùng thử)');
+    fireEvent.click(btn('Đổi nhóm'));
     await find('Nhập mã mời');
     // Người thường không thấy danh sách nhóm và không lập được nhóm khi máy chủ không cho.
     expect(screen.queryByText(/Lớp 10A1/)).toBeNull();
@@ -255,7 +265,8 @@ describe('giao diện + API', () => {
     // Tạo tài khoản rồi gắn email Google nằm trong ADMIN_EMAILS (test không đăng nhập Google thật được).
     const base = 'http://127.0.0.1:' + (server.server.address() as AddressInfo).port;
     const r = await (await fetch(base + '/api/auth/guest', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Quản trị' }) })).json();
-    await database.db.update(users).set({ provider: 'google', email: 'QuanTri@example.com' }).where(eq(users.id, r.me.id));
+    // Tài khoản khách tự vào nhóm riêng khi tạo; quản trị viên bắt đầu ở màn chọn nhóm.
+    await database.db.update(users).set({ provider: 'google', email: 'QuanTri@example.com', currentGroupId: null }).where(eq(users.id, r.me.id));
     localStorage.setItem('tptl-token', r.token);
     mount();
     await find('Tất cả nhóm');
