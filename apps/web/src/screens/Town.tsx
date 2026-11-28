@@ -39,7 +39,7 @@ export function Town({ detail, player: me, onTab, onReward, onRecallDone }: { de
         </Banner>
       )}
 
-      {!me.participantCode && <ParticipantCodeCard gid={detail.group.id} player={me} />}
+      {!me.participantCode && !detail.group.personal && <ParticipantCodeCard gid={detail.group.id} player={me} />}
       {detail.recall && <RecallCard key={detail.recall.sid} recall={detail.recall} onDone={onRecallDone} />}
 
       {/* Màn hình game: tiêu đề, tài nguyên, thành phố, nút hành động */}

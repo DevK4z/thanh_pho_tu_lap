@@ -74,6 +74,8 @@ export function reportRoutes(app: FastifyInstance, { db, env, requireUser, isAdm
       .innerJoin(groups, eq(groups.id, players.groupId))
       .innerJoin(users, eq(users.id, players.userId))
       .leftJoin(s, joinOn)
+      // Báo cáo nghiên cứu không tính nhóm riêng của tài khoản khách (dùng thử).
+      .where(eq(groups.personal, false))
       .groupBy(players.id, groups.id, users.id)
       .orderBy(groups.name, desc(players.createdAt));
 

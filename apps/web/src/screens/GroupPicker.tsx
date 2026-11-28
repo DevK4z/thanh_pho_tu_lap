@@ -11,12 +11,12 @@ export function GroupPicker({ me }: { me: Me }) {
   const toast = useToast();
   const config = useConfig();
   const groups = useGroups(me.isAdmin);
-  const { create, join, joinCode } = useGroupMembership();
+  const { create, join, joinCode, personal } = useGroupMembership();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const canCreate = me.isAdmin || config.data?.groupCreation === 'open';
   const list = groups.data ?? [];
-  const busy = create.isPending || join.isPending || joinCode.isPending;
+  const busy = create.isPending || join.isPending || joinCode.isPending || personal.isPending;
   const codeOk = normalizeCode(code).length === INVITE_LENGTH;
 
   function submitCreate(e: FormEvent) {
@@ -49,6 +49,15 @@ export function GroupPicker({ me }: { me: Me }) {
             <div><Button type="submit" variant="primary" disabled={!codeOk || busy}>{joinCode.isPending ? 'Đang vào nhóm…' : 'Vào nhóm'}</Button></div>
           </form>
         </Card>
+        {me.provider === 'guest' && (
+          <Card>
+            <div>
+              <h3>Nhóm riêng của bạn</h3>
+              <Muted small className="mt-1">Chưa có mã mời? Vào nhóm riêng để dùng thử ngay: xây thành phố, đăng ký phiên tập trung, không cần mã. Tiến độ ở nhóm riêng được giữ lại.</Muted>
+            </div>
+            <div><Button variant="primary" disabled={busy} onClick={() => personal.mutate(undefined, { onError: (e) => toast(errorMessage(e)) })}>{personal.isPending ? 'Đang vào…' : 'Vào nhóm riêng'}</Button></div>
+          </Card>
+        )}
         {canCreate && (
           <Card>
             <div>

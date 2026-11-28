@@ -120,7 +120,9 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   if (!d) return <Layout who={who}><Loading text="Đang tải dữ liệu nhóm…" lines={4} /></Layout>;
 
   const tabs: [Tab, string][] = [['town', 'Thành phố'], ['focus', 'Tập trung'], ['tasks', 'Nhiệm vụ'], ['mine', 'Của tôi'], ['group', 'Nhóm'], ['rank', 'Xếp hạng']];
-  if (d.canManage) tabs.push(['admin', 'Quản trị']);
+  // Nhóm riêng của khách không có gì để quản trị (không nhận thành viên).
+  const manage = d.canManage && (!d.group.personal || me.isAdmin);
+  if (manage) tabs.push(['admin', 'Quản trị']);
   const current: Tab = inFlow || flow?.step === 'failed' ? 'focus' : flow?.step === 'reward' ? 'town' : tab;
   function go(t: Tab) {
     if (inFlow) { toast('Bạn đang trong phiên cam kết.'); return; }
@@ -140,18 +142,18 @@ export function GroupApp({ me, gid }: { me: Me; gid: string }) {
   } else if (current === 'tasks') {
     // Nhiệm vụ trong ngày gắn với tài khoản nên mở được cả khi chưa tạo nhà trong nhóm.
     body = <DailyTasks />;
-  } else if (!player && current !== 'group' && current !== 'rank' && !(current === 'admin' && d.canManage)) {
+  } else if (!player && current !== 'group' && current !== 'rank' && !(current === 'admin' && manage)) {
     // Chưa có nhà thì tạo nhà trước; riêng bảng nhóm và tab Quản trị vẫn mở được (trưởng nhóm, quản trị viên chưa chơi).
-    body = <Onboard gid={gid} defaultName={me.name} onCreated={() => setTab('town')} />;
+    body = <Onboard gid={gid} defaultName={me.name} personal={d.group.personal} onCreated={() => setTab('town')} />;
   } else if (flow?.step === 'reward' && player && player.pending.length) {
     body = <Reward gid={gid} player={player} result={flow.result} onAllPlaced={() => { setFlow(null); setTab('town'); }} />;
   } else if (current === 'town' && player) {
     body = <Town detail={d} player={player} onTab={go} onRecallDone={refresh} onReward={() => setFlow({ step: 'reward', result: null })} />;
   } else if (current === 'focus' && player) {
-    body = <FocusSetup gid={gid} player={player} recall={d.recall} onRecallDone={refresh} onStart={(s) => setFlow({ step: 'run', s })} />;
+    body = <FocusSetup gid={gid} player={player} personal={d.group.personal} recall={d.recall} onRecallDone={refresh} onStart={(s) => setFlow({ step: 'run', s })} />;
   } else if (current === 'mine' && player) {
     body = <Mine gid={gid} player={player} onTab={go} />;
-  } else if (current === 'admin' && d.canManage) {
+  } else if (current === 'admin' && manage) {
     body = <Admin gid={gid} detail={d} isAppAdmin={me.isAdmin} onOpenReward={() => setFlow({ step: 'reward', result: null })} />;
   } else if (current === 'rank') {
     body = <Ranking meId={d.meId} />;

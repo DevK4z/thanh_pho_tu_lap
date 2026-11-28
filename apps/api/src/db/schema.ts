@@ -32,6 +32,9 @@ export const groups = pgTable('groups', {
   /** Mã mời vào nhóm; trưởng nhóm đổi được. */
   inviteCode: text('invite_code').notNull().unique(),
   ownerId: uuid('owner_id').notNull().references((): AnyPgColumn => users.id),
+  /** Nhóm riêng của tài khoản khách (tự tạo khi đăng nhập khách): chỉ chủ nhóm, không nhận thành viên,
+      không hiện trong xếp hạng của người khác và báo cáo nghiên cứu, không bắt buộc mã cá nhân. */
+  personal: boolean('personal').notNull().default(false),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 

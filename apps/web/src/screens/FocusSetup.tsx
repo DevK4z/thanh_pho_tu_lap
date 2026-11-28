@@ -40,7 +40,7 @@ const WATCH_LABEL = {
   none: 'Ngoài màn hình · cất điện thoại',
 };
 
-export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid: string; player: Player; recall: RecallDue | null; onRecallDone: () => void; onStart: (s: ActiveSession) => void }) {
+export function FocusSetup({ gid, player, recall, onRecallDone, onStart, personal = false }: { gid: string; player: Player; recall: RecallDue | null; onRecallDone: () => void; onStart: (s: ActiveSession) => void; personal?: boolean }) {
   const toast = useToast();
   const [act, setAct] = useState<ActKey>('deep');
   const [dur, setDur] = useState<number | ''>(25);
@@ -86,7 +86,8 @@ export function FocusSetup({ gid, player, recall, onRecallDone, onStart }: { gid
     }
   }
 
-  if (!player.participantCode) {
+  // Nhóm riêng của khách không cần mã cá nhân.
+  if (!player.participantCode && !personal) {
     return (
       <section className="flex flex-col gap-3.5">
         <div><Eyebrow>Đăng ký phiên</Eyebrow><h2>Cần mã cá nhân trước</h2></div>
