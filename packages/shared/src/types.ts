@@ -286,7 +286,8 @@ export interface Ranking {
 /** Toàn bộ dữ liệu cho quản trị viên tải về để sao lưu và phân tích. Không chứa email hay đáp án câu hỏi. */
 export interface FullExport {
   exportedAt: number;
-  groups: { id: string; name: string; ownerName: string; createdAt: number }[];
+  /** personal: nhóm riêng của tài khoản khách (dùng thử), không phải nhóm nghiên cứu. */
+  groups: { id: string; name: string; ownerName: string; createdAt: number; personal: boolean }[];
   players: {
     id: string; groupId: string; groupName: string; participantCode: string | null; name: string; provider: Provider;
     totalFocusMin: number; unverifiedMin: number; tasksDone: number; tasksFailed: number; currentStreak: number; bestStreak: number;

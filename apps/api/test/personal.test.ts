@@ -15,7 +15,8 @@ let database: Database;
 beforeAll(async () => {
   database = await openDatabase({ migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });
   app = await buildApp({ db: database.db, env: loadEnv({ ADMIN_EMAILS: 'boss@example.com' }), rateLimit: false,
-    verifiers: { google: async (c) => ({ sub: c, name: 'Thầy ' + c, email: c === 'boss' ? 'boss@example.com' : c + '@example.com', avatarUrl: null }) } });
+    // Mã đăng nhập Google giả phải dài từ 10 ký tự (giống kiểm tra của API).
+    verifiers: { google: async (c) => ({ sub: c, name: 'Thầy ' + c, email: c === 'boss-account' ? 'boss@example.com' : c + '@example.com', avatarUrl: null }) } });
 });
 afterAll(async () => { await app.close(); await database.close(); });
 
@@ -55,13 +56,13 @@ describe('nhóm riêng của khách', () => {
     const { token, me } = await guest('Chi');
     expect((await call<Me>('POST', '/me/leave-group', token)).body.currentGroupId).toBeNull();
     expect((await call<Me>('POST', '/me/personal-group', token)).body.currentGroupId).toBe(me.currentGroupId);
-    const t = await google('teacher');
+    const t = await google('teacher-account');
     expect(t.me.currentGroupId).toBeNull();
     expect((await call('POST', '/me/personal-group', t.token)).status).toBe(403);
   });
 
   it('nhóm thật vẫn bắt buộc mã cá nhân', async () => {
-    const boss = await google('boss');
+    const boss = await google('boss-account');
     const gid = (await call<Me>('POST', '/groups', boss.token, { name: 'Lớp thật' })).body.currentGroupId!;
     const hs = await guest('Dũng');
     await call('POST', '/groups/join', hs.token, { code: await inviteOf(gid) });
@@ -69,7 +70,7 @@ describe('nhóm riêng của khách', () => {
   });
 
   it('nhóm riêng không hiện trong danh sách nhóm của quản trị viên, báo cáo, và xếp hạng của người khác', async () => {
-    const boss = await google('boss');
+    const boss = await google('boss-account');
     const list = (await call<GroupSummary[]>('GET', '/groups', boss.token)).body;
     expect(list.map((g) => g.name)).toEqual(['Lớp thật']);
     const report = (await call<{ rows: { groupName: string }[] }>('GET', '/admin/report', boss.token)).body;

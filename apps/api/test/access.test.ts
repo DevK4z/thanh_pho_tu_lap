@@ -112,7 +112,9 @@ describe('quyền truy cập', () => {
     const res = await app.inject({ method: 'GET', url: '/api/admin/export', headers: { authorization: 'Bearer ' + admin } });
     expect(res.headers['content-disposition']).toMatch(/attachment; filename="thanh-pho-tu-lap-\d{4}-\d{2}-\d{2}\.json"/);
     const x = res.json() as FullExport;
-    expect(x.groups).toHaveLength(2);
+    // Hai nhóm thật; các nhóm riêng của tài khoản khách cũng có trong bản sao lưu, được đánh dấu personal.
+    expect(x.groups.filter((g) => !g.personal)).toHaveLength(2);
+    expect(x.groups.filter((g) => g.personal).every((g) => g.name.startsWith('Nhóm riêng của '))).toBe(true);
     expect(x.players.map((p) => p.participantCode).sort()).toEqual(['C-001', 'T0-016', 'T1-015']);
     const raw = res.body;
     expect(raw).not.toContain('@example.com');

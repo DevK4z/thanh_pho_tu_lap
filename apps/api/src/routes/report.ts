@@ -22,7 +22,7 @@ export function reportRoutes(app: FastifyInstance, { db, env, requireUser, isAdm
     const byKey = backupKeyOk(req.headers['x-backup-key']);
     const u = byKey ? null : await requireUser(req);
     if (u && !isAdmin(u)) throw new HttpError(403, 'admin_only', 'Chỉ quản trị viên ứng dụng tải được dữ liệu.');
-    const gs = await db.select({ id: groups.id, name: groups.name, createdAt: groups.createdAt, ownerName: users.name }).from(groups).innerJoin(users, eq(users.id, groups.ownerId));
+    const gs = await db.select({ id: groups.id, name: groups.name, createdAt: groups.createdAt, personal: groups.personal, ownerName: users.name }).from(groups).innerJoin(users, eq(users.id, groups.ownerId));
     const ps = await db.select({ p: players, provider: users.provider }).from(players).innerJoin(users, eq(users.id, players.userId));
     const ss = await db.select().from(focusSessions).orderBy(focusSessions.startedAt);
     const ds = await db.select().from(dayStats).orderBy(dayStats.day);
@@ -33,7 +33,8 @@ export function reportRoutes(app: FastifyInstance, { db, env, requireUser, isAdm
     reply.header('content-disposition', `attachment; filename="thanh-pho-tu-lap-${new Date().toISOString().slice(0, 10)}.json"`);
     return {
       exportedAt: Date.now(),
-      groups: gs.map((g) => ({ id: g.id, name: g.name, ownerName: g.ownerName, createdAt: g.createdAt.getTime() })),
+      // Bản sao lưu giữ cả nhóm riêng của khách, đánh dấu personal để lọc khi phân tích.
+      groups: gs.map((g) => ({ id: g.id, name: g.name, ownerName: g.ownerName, createdAt: g.createdAt.getTime(), personal: g.personal })),
       players: ps.map(({ p, provider }) => ({
         id: p.id, groupId: p.groupId, groupName: gName.get(p.groupId) ?? '', participantCode: p.participantCode, name: p.name, provider,
         totalFocusMin: p.totalFocusMin, unverifiedMin: p.unverifiedMin, tasksDone: p.tasksDone, tasksFailed: p.tasksFailed,
